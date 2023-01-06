@@ -28,7 +28,7 @@ library(purrr)
 library(plotly)
 library(glue)
 
-source("load_data.R")
+#source("load_data.R")
 patient_id <- patients$pseudo_fallnr[1]
 recommendation_id <- recommendations$id[1]
 # patient_results <- load_recommendation_results(recommendation_id)

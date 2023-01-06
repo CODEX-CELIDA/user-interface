@@ -37,8 +37,8 @@ library(readr)
 #source("load_data_new.R")
 #setwd(act.wd)
 
-patient_id <- patients$person_id[1]
-recommendation_id <- recommendations$id[1]     
+patient_id <- patients$person_id[2]
+recommendation_id <- recommendations$id[2]     
 
 # patient_results <- load_recommendation_results(recommendation_id)
 
@@ -215,7 +215,7 @@ server <- function(input, output, session) {
       DT::datatable(tabldat(),
         rownames = FALSE,
         selection = list(mode = "single", selected = c(1)),
-        colnames = c("Name", "Compliant1", "Compliant2", "Compliant3", "Compliant4", "Compliant"),
+        colnames = c("Name", "Compliant1", "Compliant2", "Compliant3", "Compliant4", "Compliant5"),
         options = list(
           columnDefs = list(
             list(
@@ -275,15 +275,15 @@ server <- function(input, output, session) {
   tabldspl <- reactive({
     t <- data.frame(
       "Name" = patient_results()$person_id,
-      "P" = patient_results()$valid_exposure,
-      "Compliant1" = patient_results()$valid_treatment,
-      "Compliant2" = patient_results()$valid_treatment,
-      "Compliant3" = patient_results()$valid_treatment,
-      "Compliant4" = patient_results()$valid_treatment
+      "Compliant1" = patient_results()$valid_exposure,
+      "Compliant2" = patient_results()$valid_exposure,
+      "Compliant3" = patient_results()$valid_exposure,
+      "Compliant4" = patient_results()$valid_exposure,
+      "Compliant5" = patient_results()$valid_exposure
     )
 
     # set I and P&I to NA if P doesn't match the patient
-    t[!t$P, c("Compliant")] <- NA
+    #t[!t$P, c("Compliant")] <- NA
 
     return(t)
   })

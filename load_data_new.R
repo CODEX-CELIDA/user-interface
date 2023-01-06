@@ -50,9 +50,9 @@ setwd(act.wd)
 
 
 
-load_dot_env()
-GET(url='http://localhost:5004/run')
-base_url <- "http://localhost:5002"
+#load_dot_env()
+#GET(url='http://localhost:5004/run')
+#base_url <- "http://localhost:5002"
 #GET(url = paste0(Sys.getenv("COMPARATOR_SERVER"), "/run"))
 #base_url <- Sys.getenv("UI_BACKEND_SERVER")
 #req <- POST(url = paste0(base_url, "/token"), body = list(grant_type = "password", username = Sys.getenv("UI_BACKEND_USERNAME"), password = Sys.getenv("UI_BACKEND_PASSWORD")))
@@ -114,8 +114,6 @@ load_recommendation_results <- function(recommendation_id) {
   return(patient_results)
 }
 
-#löschen
-patient_id<-patients$person_id[1]
 
 
 load_patient <- function(patient_id, recommendation_id) {
