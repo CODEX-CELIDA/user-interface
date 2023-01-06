@@ -37,8 +37,8 @@ library(readr)
 #source("load_data_new.R")
 #setwd(act.wd)
 
-patient_id <- patients$person_id[2]
-recommendation_id <- recommendations$id[2]     
+patient_id <- patients$person_id[1]
+recommendation_id <- recommendations$id[1]     
 
 # patient_results <- load_recommendation_results(recommendation_id)
 
