@@ -29,6 +29,7 @@ library(plotly)
 library(glue)
 library(dotenv)
 library(readr)
+library(tidyr)
 
 # load data ####################################################################
 
@@ -140,9 +141,9 @@ ui <- fluidPage(
 getPlotUIs <- function(vars, type) {
   return(renderUI({
     myTabs <- map(vars, ~ tabPanel(
-      title = "2Do",                                                            #variable title
+      title = as.character(.x),                                                           #variable title
       wellPanel(
-        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),         #.x?
+        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),         
         style = "padding:0;margin-bottom:0;"
       )
     ))
@@ -161,7 +162,8 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
         data <- patientdata() %>% filter(variable_name == localvar)
         data$value <- data$value %>% type.convert()
         max_dt <- max(patientdata()$datetime)
-
+        min_dt <- min(patientdata()$datetime)
+        
         
         if (nrow(data) == 0) {
           # no data
@@ -191,7 +193,7 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
         ggplotly(ggp +
           xlab("Date") +
           ylab(localvar) +
-          coord_cartesian(xlim = c(max_dt - 86400 * 4, max_dt)))
+          coord_cartesian(xlim = c(min_dt, max_dt)))
       })
     })
   }
@@ -216,7 +218,7 @@ server <- function(input, output, session) {
       DT::datatable(tabldat(),
         rownames = FALSE,
         selection = list(mode = "single", selected = c(1)),
-        colnames = c("Name", "Ward", "Compliant1", "Compliant2", "Compliant3", "Compliant4", "Compliant5", "Compliant6", "Compliant7", "Compliant8", "Compliant9", "Compliant10"),
+        colnames = c("Name", "Ward", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10"),
         options = list(
           columnDefs = list(
             list(
@@ -238,7 +240,7 @@ server <- function(input, output, session) {
             )
           )
         )
-      ) %>% formatStyle(c(3),                                        # +rv$recommendation_id
+      ) %>% formatStyle(c(3),                                        # +rv$recommendation_id > reaktive Markierung der Spalte entsprehedne der asugewählten Empfehlung
         backgroundColor = styleEqual(
           c(TRUE, FALSE),
           c(
@@ -277,16 +279,16 @@ server <- function(input, output, session) {
     t <- data.frame(
       "Name" = patient_results()$person_id,
       "Name" = patient_results()$ward,
-      "Compliant1" = patient_results()$valid_exposure,
-      "Compliant2" = patient_results()$valid_exposure,
-      "Compliant3" = patient_results()$valid_exposure,
-      "Compliant4" = patient_results()$valid_exposure,
-      "Compliant5" = patient_results()$valid_exposure,
-      "Compliant6" = patient_results()$valid_exposure,
-      "Compliant7" = patient_results()$valid_exposure,
-      "Compliant8" = patient_results()$valid_exposure,
-      "Compliant9" = patient_results()$valid_exposure,
-      "Compliant10" = patient_results()$valid_exposure
+      "C1" = patient_results()$valid_exposure,
+      "C2" = patient_results()$valid_exposure,
+      "C3" = patient_results()$valid_exposure,
+      "C4" = patient_results()$valid_exposure,
+      "C5" = patient_results()$valid_exposure,
+      "C6" = patient_results()$valid_exposure,
+      "C7" = patient_results()$valid_exposure,
+      "C8" = patient_results()$valid_exposure,
+      "C9" = patient_results()$valid_exposure,
+      "C10" = patient_results()$valid_exposure
     )
 
     # set I and P&I to NA if P doesn't match the patient

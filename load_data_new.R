@@ -69,9 +69,10 @@ recommendations <- cohort_definition %>%
 
 rec_results<-recommendation.result %>% 
   filter(is.na(criterion_name) & is.na(recommendation_plan_name)) %>% 
-  arrange(person_id)
+  arrange(person_id) %>% 
+  rename(variable_name = criterion_name )
 
-patients <- patient.dat
+patients <- patient.dat  %>% rename(variable_name = criterion_name)
 
 #req <- GET(paste0(base_url, "/patients/list"), add_headers("Authorization" = paste("Bearer", auth.token)))
 #patients$age <- floor(age_calc(as.Date(patients$birth_date), units = "years"))
@@ -84,8 +85,8 @@ load_recommendation_variables <- function(recommendation_id) {
   
   recommendation_variables <-  patients[patients$recommendation_run_id==recommendation_id,] %>% 
     distinct(parameter_concept_id,  .keep_all = TRUE) %>% 
-    select(cohort_category, criterion_name)  %>%
-    rename(type = cohort_category, variable_name = criterion_name )
+    select(cohort_category, variable_name)  %>%
+    rename(type = cohort_category)
 
   return(recommendation_variables)
 }
@@ -124,13 +125,14 @@ load_patient <- function(patient_id, recommendation_id) {
   #req <- GET(paste0(base_url, "/patient/get/?patient_id=", patient_id, "&recommendation_id=", recommendation_id), add_headers("Authorization" = paste("Bearer", auth.token)))
   #patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
   
-  patientdata<- patients[patients$recommendation_run_id==recommendation_id & patients$person_id==patient_id & patients$domain_id=="Measurement",] %>%
-    select(criterion_name, value_as_number, start_datetime, end_datetime, person_id) %>%
-    rename(variable_name=criterion_name, value=value_as_number, datetime=start_datetime, datetime_end=end_datetime)
+  patientdata<- patients[patients$recommendation_run_id==recommendation_id & patients$person_id==patient_id ,] %>%   #& patients$domain_id=="Measurement"
+    select(variable_name, value_as_number, start_datetime, end_datetime, person_id) %>%
+    rename(value=value_as_number, datetime=start_datetime, datetime_end=end_datetime)  %>%
+    mutate_at("value", ~replace_na(., 1)) 
   
  # patientdata$variable_name <- "Measurement_aPTT"
   
-  patientdata <- patientdata %>% arrange(criterion_name, start_datetime)
+  patientdata <- patientdata %>% arrange(variable_name, datetime) 
 
   return(patientdata)
 }
