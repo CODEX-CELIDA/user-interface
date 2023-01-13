@@ -31,7 +31,7 @@ act.wd <- getwd()
 setwd("D:/GitHub/user-interface")                                               # Nach lokalem Speicherort ändern
 files <- list.files(path = "data/")
 
-patient.dat<-read_csv(paste0("data/", "recommendation_person_data_202301061125.csv" )) %>% arrange(person_id) %>% 
+patient.dat<-read_csv(paste0("data/", "recommendation_person_data_202301061349.csv" )) %>% arrange(person_id) %>% 
   mutate(ward = case_when(person_id <= 30 ~ "ward1", 
                           person_id <= 60 ~ "ward2",
                           person_id >= 61 ~ "ward3"))  %>% 
@@ -42,12 +42,11 @@ age<-data_frame(
 patient.dat<-patient.dat %>%  left_join(age, by = "person_id") 
 
 
-recommendation.dat<-read_csv(paste0("data/", "recommendation_result_202301061125.csv" ))
-cohort_definition <- read_csv(paste0("data/","cohort_definition_202301061125.csv"))
-recommendation_run<-read_csv(paste0("data/", "recommendation_run_202301061125.csv" ))
+recommendation.result<-read_csv(paste0("data/", "recommendation_result_202301061349.csv" ))
+cohort_definition <- read_csv(paste0("data/","cohort_definition_202301061349.csv"))
+recommendation_run<-read_csv(paste0("data/", "recommendation_run_202301061349.csv" ))
 
 setwd(act.wd)
-
 
 
 #load_dot_env()
@@ -68,7 +67,7 @@ recommendations <- cohort_definition %>%
   rename(id = cohort_definition_id, title = recommendation_url ) %>% 
   mutate(text = "text")
 
-rec_results<-recommendation.dat %>% 
+rec_results<-recommendation.result %>% 
   filter(is.na(criterion_name) & is.na(recommendation_plan_name)) %>% 
   arrange(person_id)
 
@@ -98,8 +97,7 @@ load_recommendation_results <- function(recommendation_id) {
   #gl_summary <- recommendation_results[["summary"]]
   #gl_details <- recommendation_results[["detail"]]
   
-  patient_results <- patients[patients$recommendation_run_id==recommendation_id,] %>%
-    select(person_id, ward, age, icu_day)
+  patient_results <- distinct(patients, person_id, .keep_all = TRUE) %>%   select(person_id, ward, age, icu_day)
   
   gl_summary_rec<-rec_results[rec_results$recommendation_run_id==recommendation_id,] %>% arrange(person_id)
   
@@ -107,10 +105,11 @@ load_recommendation_results <- function(recommendation_id) {
   person_id = unique(gl_summary_rec$person_id),
   valid_exposure = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "POPULATION_INTERVENTION"],
   valid_population = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "POPULATION"],
-  valid_treatment = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "POPULATION"] )
+  valid_treatment = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "INTERVENTION"] )
 
   patient_results <- patient_results %>% inner_join(gl_summary, by = "person_id")
-  
+  patient_results_test <<- patient_results %>% inner_join(gl_summary, by = "person_id")
+
   return(patient_results)
 }
 
@@ -128,6 +127,8 @@ load_patient <- function(patient_id, recommendation_id) {
   patientdata<- patients[patients$recommendation_run_id==recommendation_id & patients$person_id==patient_id & patients$domain_id=="Measurement",] %>%
     select(criterion_name, value_as_number, start_datetime, end_datetime, person_id) %>%
     rename(variable_name=criterion_name, value=value_as_number, datetime=start_datetime, datetime_end=end_datetime)
+  
+ # patientdata$variable_name <- "Measurement_aPTT"
   
   patientdata <- patientdata %>% arrange(criterion_name, start_datetime)
 

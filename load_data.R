@@ -25,11 +25,11 @@ parse_datetime <- function(s) {
 
 load_dot_env()
 
-# GET(url='http://localhost:5004/run')
-# base_url <- "http://localhost:5002"
+ GET(url='http://localhost:5004/run')
+ base_url <- "http://localhost:5002"
 
-GET(url = paste0(Sys.getenv("COMPARATOR_SERVER"), "/run"))
-base_url <- Sys.getenv("UI_BACKEND_SERVER")
+#GET(url = paste0(Sys.getenv("COMPARATOR_SERVER"), "/run"))
+#base_url <- Sys.getenv("UI_BACKEND_SERVER")
 
 req <- POST(url = paste0(base_url, "/token"), body = list(grant_type = "password", username = Sys.getenv("UI_BACKEND_USERNAME"), password = Sys.getenv("UI_BACKEND_PASSWORD")))
 auth.token <- content(req)$access_token

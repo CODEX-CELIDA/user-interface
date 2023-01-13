@@ -60,7 +60,8 @@ variable_name_mappings <- list(
   drug_vasopressin = "Vasopressin",
   sO2 = "sO2",
   respiratory_rate = "Respiratory rate",
-  drug_dexamethason_bolus = "Dexamethasone"
+  drug_dexamethason_bolus = "Dexamethasone",
+  Measurement_aPTT= "PTT"
 )
 
 ui <- fluidPage(
@@ -83,9 +84,9 @@ ui <- fluidPage(
     column(2, img(src = "logo_num.jpg", height = 120), align = "left"),
     column(4, selectInput(
       inputId = "recommendation_id", label = h1("Guideline Recommendation"),
-      choices = setNames(recommendations$cohort_definition_id, recommendations$recommendation_url),
+      choices = setNames(recommendations$id, recommendations$title),
       selected = NULL,
-      width = "80%"
+      width = "90%"
     ),
     align = "center"
     )
@@ -101,17 +102,17 @@ ui <- fluidPage(
     # Patient Table Column
 
     column(
-      5,
+      7,
       wellPanel(
         h1("Patients"),
-        DT::dataTableOutput("patienttable")
+        DT::dataTableOutput("patienttable") 
       )
     ),
 
     # Recommendation Column
 
     column(
-      7,
+      5,
 
       # recommendation-Text Row
 
@@ -139,9 +140,9 @@ ui <- fluidPage(
 getPlotUIs <- function(vars, type) {
   return(renderUI({
     myTabs <- map(vars, ~ tabPanel(
-      title = "2DO",                                                            #variable title
+      title = "2Do",                                                            #variable title
       wellPanel(
-        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),
+        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),         #.x?
         style = "padding:0;margin-bottom:0;"
       )
     ))
@@ -189,7 +190,7 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
         }
         ggplotly(ggp +
           xlab("Date") +
-          ylab(variable_name_mappings[[localvar]]) +
+          ylab(localvar) +
           coord_cartesian(xlim = c(max_dt - 86400 * 4, max_dt)))
       })
     })
@@ -207,15 +208,15 @@ server <- function(input, output, session) {
   })
 
 
-  # Patient data table
-  options(DT.options = list(pageLength = 15))
+  # Patient data table                                                          # font size change
+  options(DT.options = list(pageLength = 25))
   observeEvent(input$ward, {
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(tabldat(),
         rownames = FALSE,
         selection = list(mode = "single", selected = c(1)),
-        colnames = c("Name", "Compliant1", "Compliant2", "Compliant3", "Compliant4", "Compliant5"),
+        colnames = c("Name", "Ward", "Compliant1", "Compliant2", "Compliant3", "Compliant4", "Compliant5", "Compliant6", "Compliant7", "Compliant8", "Compliant9", "Compliant10"),
         options = list(
           columnDefs = list(
             list(
@@ -233,11 +234,11 @@ server <- function(input, output, session) {
                 "return data",
                 "}"
               ),
-              className = "dt-center", targets = 1:5
+              className = "dt-center", targets = 1:11
             )
           )
         )
-      ) %>% formatStyle(c(6),
+      ) %>% formatStyle(c(3),                                        # +rv$recommendation_id
         backgroundColor = styleEqual(
           c(TRUE, FALSE),
           c(
@@ -275,11 +276,17 @@ server <- function(input, output, session) {
   tabldspl <- reactive({
     t <- data.frame(
       "Name" = patient_results()$person_id,
+      "Name" = patient_results()$ward,
       "Compliant1" = patient_results()$valid_exposure,
       "Compliant2" = patient_results()$valid_exposure,
       "Compliant3" = patient_results()$valid_exposure,
       "Compliant4" = patient_results()$valid_exposure,
-      "Compliant5" = patient_results()$valid_exposure
+      "Compliant5" = patient_results()$valid_exposure,
+      "Compliant6" = patient_results()$valid_exposure,
+      "Compliant7" = patient_results()$valid_exposure,
+      "Compliant8" = patient_results()$valid_exposure,
+      "Compliant9" = patient_results()$valid_exposure,
+      "Compliant10" = patient_results()$valid_exposure
     )
 
     # set I and P&I to NA if P doesn't match the patient
@@ -308,25 +315,26 @@ server <- function(input, output, session) {
     # Input change ###
     #recommendation_variables <-
     
-    recommendation_variables <- load_recommendation_variables(input$recommendation_id)
+    recommendation_variables <- load_recommendation_variables(input$recommendation_id)   #recommendation_variables
     
     
-    vars_population <- recommendation_variables %>%
-      filter(type == "population") %>%
+    vars_population <- recommendation_variables %>%                             # patient_results
+      filter(type == "POPULATION") %>%
       pull(variable_name) %>%
       unique() %>%
       as.list()
     vars_intervention <- recommendation_variables %>%
-      filter(type == "exposure") %>%
+      filter(type == "INTERVENTION") %>%
       pull(variable_name) %>%
       unique() %>%
       as.list()
 
     ##### Create divs######
-    output$population_main <- getPlotUIs(vars_population, "population")
-    setPlotUIOutputs(output, patientdata, vars_population, "population")
-    output$intervention_main <- getPlotUIs(vars_intervention, "intervention")
-    setPlotUIOutputs(output, patientdata, vars_intervention, "intervention")
+    output$population_main <- getPlotUIs(vars_population, "POPULATION")
+    setPlotUIOutputs(output, patientdata, vars_population, "POPULATION")
+    
+    output$intervention_main <- getPlotUIs(vars_intervention, "INTERVENTION")
+    setPlotUIOutputs(output, patientdata, vars_intervention, "INTERVENTION")
   })
 }
 
