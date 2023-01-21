@@ -33,10 +33,10 @@ library(tidyr)
 
 # load data ####################################################################
 
-#act.wd <- getwd()
-#setwd("D:/GitHub/user-interface")
-#source("load_data_new.R")
-#setwd(act.wd)
+act.wd <- getwd()
+setwd("D:/GitHub/user-interface")
+source("load_data_new.R")
+setwd(act.wd)
 
 patient_id <- patients$person_id[1]
 recommendation_id <- recommendations$id[1]     
@@ -65,6 +65,8 @@ variable_name_mappings <- list(
   Measurement_aPTT= "PTT"
 )
 
+addResourcePath(prefix = 'pics', directoryPath = 'pictures')
+
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
 
@@ -73,24 +75,30 @@ ui <- fluidPage(
   # Title Row
 
   fluidRow(
-    column(4, selectInput(
-      inputId = "ward", label = h1("Ward"),
-      choices = c("All"),
-      selected = "All",
-      width = "80%"
-    ),
-    align = "center"
-    ),
-    column(2, img(src = "logo_ceosys.jpg", height = 120), align = "right"),
-    column(2, img(src = "logo_num.jpg", height = 120), align = "left"),
-    column(4, selectInput(
-      inputId = "recommendation_id", label = h1("Guideline Recommendation"),
-      choices = setNames(recommendations$id, recommendations$title),
-      selected = NULL,
-      width = "90%"
-    ),
-    align = "center"
-    )
+    column(7, 
+        selectInput(
+          inputId = "ward", label = h1("Ward"),
+          choices = c("All"),
+          selected = "All",
+          width = "60%"
+          ),
+        selectInput(
+          inputId = "recommendation_id", label = h1("Guideline Recommendation"),
+          choices = setNames(recommendations$id, paste("C",recommendations$id,recommendations$title)),
+          selected = NULL,
+          width = "90%"
+          ),
+        align = "center"
+        ),
+    column(5,
+           tags$img(src = "pics/logo_ceosys.jpg", height = 100), align = "right",
+           tags$img(src = "pics/logo_num.jpg", height = 100), align = "right",
+      wellPanel(
+        h1("Guideline Recommendation"),
+        htmlOutput("recommendation_text"),
+        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }"))
+        )
+      )
   ),
 
   
@@ -117,11 +125,7 @@ ui <- fluidPage(
 
       # recommendation-Text Row
 
-      wellPanel(
-        h1("Guideline Recommendation"),
-        htmlOutput("recommendation_text"),
-        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
-      ),
+     
 
       # recommendation-Population Row
       wellPanel(
@@ -137,6 +141,7 @@ ui <- fluidPage(
     )
   )
 )
+
 
 getPlotUIs <- function(vars, type) {
   return(renderUI({
@@ -199,6 +204,11 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
   }
 }
 
+
+
+
+
+
 ############# Server ############
 server <- function(input, output, session) {
   tabldat <- reactive({
@@ -209,11 +219,21 @@ server <- function(input, output, session) {
     }
   })
 
-
+ 
+  rv <- reactiveValues()
+  rv$patient_id <- reactive({
+    tabldat()[input$patienttable_rows_selected, ]$Name
+  })
+  rv$recommendation_id <- reactive({
+    input$recommendation_id
+  })
+  
+  
+   
   # Patient data table                                                          # font size change
   options(DT.options = list(pageLength = 25))
   observeEvent(input$ward, {
-    output$patienttable <- DT::renderDataTable(
+    output$patienttable <-  DT::renderDataTable(
       server = FALSE,
       DT::datatable(tabldat(),
         rownames = FALSE,
@@ -240,7 +260,7 @@ server <- function(input, output, session) {
             )
           )
         )
-      ) %>% formatStyle(c(3),                                        # +rv$recommendation_id > reaktive Markierung der Spalte entsprehedne der asugewählten Empfehlung
+      ) %>% formatStyle(c(3+recommendation_id),                                        # +rv$recommendation_id > reaktive Markierung der Spalte entsprehedne der asugewählten Empfehlung
         backgroundColor = styleEqual(
           c(TRUE, FALSE),
           c(
@@ -253,13 +273,8 @@ server <- function(input, output, session) {
   })
 
 
-  rv <- reactiveValues()
-  rv$patient_id <- reactive({
-    tabldat()[input$patienttable_rows_selected, ]$Name
-  })
-  rv$recommendation_id <- reactive({
-    input$recommendation_id
-  })
+print(c(3+recommendation_id))
+#print(c(3+rv$recommendation_id))
 
 
 
