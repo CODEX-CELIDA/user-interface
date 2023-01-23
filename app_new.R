@@ -33,10 +33,7 @@ library(tidyr)
 
 # load data ####################################################################
 
-act.wd <- getwd()
-setwd("D:/GitHub/user-interface")
 source("load_data_new.R")
-setwd(act.wd)
 
 patient_id <- patients$person_id[1]
 recommendation_id <- recommendations$id[1]     

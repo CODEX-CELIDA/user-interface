@@ -27,11 +27,7 @@ library(dotenv)
 library(stringr)
 library(readr)
 
-act.wd <- getwd()
-setwd("D:/GitHub/user-interface")                                               # Nach lokalem Speicherort ändern
-files <- list.files(path = "data/")
-
-patient.dat<-read_csv(paste0("data/", "recommendation_person_data_202301061349.csv" )) %>% arrange(person_id) %>% 
+patient.dat<-read_csv("data/recommendation_person_data.csv.zip", show_col_types=FALSE) %>% arrange(person_id) %>% 
   mutate(ward = case_when(person_id <= 30 ~ "ward1", 
                           person_id <= 60 ~ "ward2",
                           person_id >= 61 ~ "ward3"))  %>% 
@@ -42,11 +38,9 @@ age<-data_frame(
 patient.dat<-patient.dat %>%  left_join(age, by = "person_id") 
 
 
-recommendation.result<-read_csv(paste0("data/", "recommendation_result_202301061349.csv" ))
-cohort_definition <- read_csv(paste0("data/","cohort_definition_202301061349.csv"))
-recommendation_run<-read_csv(paste0("data/", "recommendation_run_202301061349.csv" ))
-
-setwd(act.wd)
+recommendation.result<-read_csv("data/recommendation_result.csv.zip", show_col_types=FALSE)
+cohort_definition <- read_csv("data/cohort_definition.csv.zip", show_col_types=FALSE)
+recommendation_run<-read_csv("data/recommendation_run.csv.zip", show_col_types=FALSE)
 
 
 #load_dot_env()
