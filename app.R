@@ -52,11 +52,10 @@ variable_name_mappings <- list(
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
-  
   tags$style(type = "text/css", "h1 { margin-top:0;} "),
   #*************************************************************************
   # Title Row
-  
+
   fluidRow(
     column(4, selectInput(
       inputId = "ward", label = h1("Ward"),
@@ -77,14 +76,13 @@ ui <- fluidPage(
     align = "center"
     )
   ),
-  
+
   #*************************************************************************
   # Content Row
-  
+
   fluidRow(
-    
+
     # Patient Table Column
-    
     column(
       5,
       wellPanel(
@@ -92,26 +90,26 @@ ui <- fluidPage(
         DT::dataTableOutput("patienttable")
       )
     ),
-    
+
     # Recommendation Column
-    
+
     column(
       7,
-      
+
       # recommendation-Text Row
-      
+
       wellPanel(
         h1("Guideline Recommendation"),
         htmlOutput("recommendation_text"),
         tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
       ),
-      
+
       # recommendation-Population Row
       wellPanel(
         h1("Population"),
         uiOutput("population_main")
       ),
-      
+
       # recommendation-Intervention Row
       wellPanel(
         h1("Intervention"),
@@ -130,7 +128,7 @@ getPlotUIs <- function(vars, type) {
         style = "padding:0;margin-bottom:0;"
       )
     ))
-    
+
     do.call(tabsetPanel, myTabs)
   }))
 }
@@ -140,12 +138,12 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
     local({
       plotname <- paste("plot", type, var, sep = "_")
       localvar <- var
-      
+
       output[[plotname]] <- renderPlotly({
         data <- patientdata() %>% filter(variable_name == localvar)
         data$value <- data$value %>% type.convert()
         max_dt <- max(patientdata()$datetime)
-        
+
         if (nrow(data) == 0) {
           # no data
           ggp <- ggplot(data, aes(datetime, value)) +
@@ -172,9 +170,9 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
             geom_point()
         }
         ggplotly(ggp +
-                   xlab("Date") +
-                   ylab(variable_name_mappings[[localvar]]) +
-                   coord_cartesian(xlim = c(max_dt - 86400 * 4, max_dt)))
+          xlab("Date") +
+          ylab(variable_name_mappings[[localvar]]) +
+          coord_cartesian(xlim = c(max_dt - 86400 * 4, max_dt)))
       })
     })
   }
@@ -189,51 +187,51 @@ server <- function(input, output, session) {
       return(tabldspl()[patient_results()$ward == input$ward, ])
     }
   })
-  
-  
+
+
   # Patient data table
   options(DT.options = list(pageLength = 15))
   observeEvent(input$ward, {
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(tabldat(),
-                    rownames = FALSE,
-                    selection = list(mode = "single", selected = c(1)),
-                    colnames = c("Name", "Age", "ICU day ", "P", "I", "Compliant"),
-                    options = list(
-                      columnDefs = list(
-                        list(
-                          render = JS(
-                            "function(data, type, row, meta) {",
-                            "if (type === 'display') {",
-                            "  if (data == true) {",
-                            "    return '&#10004;'",
-                            "  } else if (data == false) {",
-                            "    return '&#x2718;'",
-                            "  } else if (data == -1) {",
-                            "    return '';",
-                            "  }",
-                            "}",
-                            "return data",
-                            "}"
-                          ),
-                          className = "dt-center", targets = 1:5
-                        )
-                      )
-                    )
+        rownames = FALSE,
+        selection = list(mode = "single", selected = c(1)),
+        colnames = c("Name", "Age", "ICU day ", "P", "I", "Compliant"),
+        options = list(
+          columnDefs = list(
+            list(
+              render = JS(
+                "function(data, type, row, meta) {",
+                "if (type === 'display') {",
+                "  if (data == true) {",
+                "    return '&#10004;'",
+                "  } else if (data == false) {",
+                "    return '&#x2718;'",
+                "  } else if (data == -1) {",
+                "    return '';",
+                "  }",
+                "}",
+                "return data",
+                "}"
+              ),
+              className = "dt-center", targets = 1:5
+            )
+          )
+        )
       ) %>% formatStyle(c(6),
-                        backgroundColor = styleEqual(
-                          c(TRUE, FALSE),
-                          c(
-                            rgb(200, 230, 200, 255, 255, 255),
-                            rgb(230, 200, 200, 255, 255, 255)
-                          )
-                        )
+        backgroundColor = styleEqual(
+          c(TRUE, FALSE),
+          c(
+            rgb(200, 230, 200, 255, 255, 255),
+            rgb(230, 200, 200, 255, 255, 255)
+          )
+        )
       )
     )
   })
-  
-  
+
+
   rv <- reactiveValues()
   rv$patient_id <- reactive({
     tabldat()[input$patienttable_rows_selected, ]$Name
@@ -241,21 +239,21 @@ server <- function(input, output, session) {
   rv$recommendation_id <- reactive({
     input$recommendation_id
   })
-  
-  
-  
+
+
+
   ##### Functions for right column #####
-  
-  
+
+
   patientdata <- reactive({
     print("load patientdata")
     load_patient(rv$patient_id(), rv$recommendation_id())
   })
-  
+
   patient_results <- reactive({
     load_recommendation_results(rv$recommendation_id())
   })
-  
+
   tabldspl <- reactive({
     t <- data.frame(
       "Name" = patient_results()$pseudo_fallnr,
@@ -265,31 +263,31 @@ server <- function(input, output, session) {
       "I" = patient_results()$valid_exposure,
       "Compliant" = patient_results()$valid_treatment
     )
-    
+
     # set I and P&I to NA if P doesn't match the patient
     t[!t$P, c("Compliant")] <- NA
-    
+
     return(t)
   })
-  
-  
-  
+
+
+
   observeEvent(rv$patient_id(), {
     print("patient id changed")
   })
-  
+
   output$recommendation_text <- renderUI({
     HTML(recommendations[recommendations$id == input$recommendation_id, ]$text)
   })
-  
-  
+
+
   observeEvent(input$recommendation_id, {
     print("recommendation_id changed")
-    
+
     updateSelectInput(session, "ward", choices = c("All", unique(patient_results()$ward)))
-    
+
     recommendation_variables <- load_recommendation_variables(input$recommendation_id)
-    
+
     vars_population <- recommendation_variables %>%
       filter(type == "population") %>%
       pull(variable_name) %>%
@@ -300,7 +298,7 @@ server <- function(input, output, session) {
       pull(variable_name) %>%
       unique() %>%
       as.list()
-    
+
     ##### Create divs######
     output$population_main <- getPlotUIs(vars_population, "population")
     setPlotUIOutputs(output, patientdata, vars_population, "population")

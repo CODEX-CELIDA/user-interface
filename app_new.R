@@ -36,7 +36,7 @@ library(tidyr)
 source("load_data_new.R")
 
 patient_id <- patients$person_id[1]
-recommendation_id <- recommendations$id[1]     
+recommendation_id <- recommendations$id[1]
 
 # patient_results <- load_recommendation_results(recommendation_id)
 
@@ -59,46 +59,46 @@ variable_name_mappings <- list(
   sO2 = "sO2",
   respiratory_rate = "Respiratory rate",
   drug_dexamethason_bolus = "Dexamethasone",
-  Measurement_aPTT= "PTT"
+  Measurement_aPTT = "PTT"
 )
 
-addResourcePath(prefix = 'pics', directoryPath = 'pictures')
+addResourcePath(prefix = "pics", directoryPath = "pictures")
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
-
   tags$style(type = "text/css", "h1 { margin-top:0;} "),
   #*************************************************************************
   # Title Row
 
   fluidRow(
-    column(7, 
-        selectInput(
-          inputId = "ward", label = h1("Ward"),
-          choices = c("All"),
-          selected = "All",
-          width = "60%"
-          ),
-        selectInput(
-          inputId = "recommendation_id", label = h1("Guideline Recommendation"),
-          choices = setNames(recommendations$id, paste("C",recommendations$id,recommendations$title)),
-          selected = NULL,
-          width = "90%"
-          ),
-        align = "center"
-        ),
+    column(7,
+      selectInput(
+        inputId = "ward", label = h1("Ward"),
+        choices = c("All"),
+        selected = "All",
+        width = "60%"
+      ),
+      selectInput(
+        inputId = "recommendation_id", label = h1("Guideline Recommendation"),
+        choices = setNames(recommendations$id, paste("C", recommendations$id, recommendations$title)),
+        selected = NULL,
+        width = "90%"
+      ),
+      align = "center"
+    ),
     column(5,
-           tags$img(src = "pics/logo_ceosys.jpg", height = 100), align = "right",
-           tags$img(src = "pics/logo_num.jpg", height = 100), align = "right",
+      tags$img(src = "pics/logo_ceosys.jpg", height = 100),
+      align = "right",
+      tags$img(src = "pics/logo_num.jpg", height = 100), align = "right",
       wellPanel(
         h1("Guideline Recommendation"),
         htmlOutput("recommendation_text"),
         tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }"))
-        )
       )
+    )
   ),
 
-  
+
 
   #*************************************************************************
   # Content Row
@@ -106,12 +106,11 @@ ui <- fluidPage(
   fluidRow(
 
     # Patient Table Column
-
     column(
       7,
       wellPanel(
         h1("Patients"),
-        DT::dataTableOutput("patienttable") 
+        DT::dataTableOutput("patienttable")
       )
     ),
 
@@ -122,7 +121,7 @@ ui <- fluidPage(
 
       # recommendation-Text Row
 
-     
+
 
       # recommendation-Population Row
       wellPanel(
@@ -143,9 +142,9 @@ ui <- fluidPage(
 getPlotUIs <- function(vars, type) {
   return(renderUI({
     myTabs <- map(vars, ~ tabPanel(
-      title = as.character(.x),                                                           #variable title
+      title = as.character(.x), # variable title
       wellPanel(
-        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),         
+        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),
         style = "padding:0;margin-bottom:0;"
       )
     ))
@@ -161,17 +160,16 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
       localvar <- var
 
       output[[plotname]] <- renderPlotly({
-        
         if (is.null(patientdata())) {
           # no patientdata available
           return(ggplotly())
         }
-        
+
         data <- patientdata() %>% filter(variable_name == localvar)
         max_dt <- max(patientdata()$datetime)
         min_dt <- min(patientdata()$datetime)
-        
-        
+
+
         if (nrow(data) == 0) {
           # no data
           ggp <- ggplot(data, aes(datetime, value)) +
@@ -185,7 +183,8 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
         } else if (any(!is.na(data$datetime_end))) {
           # time periods
           ggp <- ggplot(data, aes(y = value, yend = value, x = datetime, xend = datetime_end)) +
-            geom_segment(linewidth = 1) + geom_point()
+            geom_segment(linewidth = 1) +
+            geom_point()
         } else if (grepl("_bolus", localvar)) {
           # drug bolus
           ggp <- ggplot(data, aes(x = datetime, ymin = 0, y = value, ymax = value)) +
@@ -221,7 +220,7 @@ server <- function(input, output, session) {
     }
   })
 
- 
+
   rv <- reactiveValues()
   rv$patient_id <- reactive({
     tabldat()[input$patienttable_rows_selected, ]$Name
@@ -229,13 +228,13 @@ server <- function(input, output, session) {
   rv$recommendation_id <- reactive({
     input$recommendation_id
   })
-  
-  
-   
+
+
+
   # Patient data table                                                          # font size change
   options(DT.options = list(pageLength = 25))
   observeEvent(input$ward, {
-    output$patienttable <-  DT::renderDataTable(
+    output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(tabldat(),
         rownames = FALSE,
@@ -262,7 +261,7 @@ server <- function(input, output, session) {
             )
           )
         )
-      ) %>% formatStyle(c(3+recommendation_id),                                        # +rv$recommendation_id > reaktive Markierung der Spalte entsprehedne der asugewählten Empfehlung
+      ) %>% formatStyle(c(3 + recommendation_id), # +rv$recommendation_id > reaktive Markierung der Spalte entsprehedne der asugewählten Empfehlung
         backgroundColor = styleEqual(
           c(TRUE, FALSE),
           c(
@@ -303,7 +302,7 @@ server <- function(input, output, session) {
     )
 
     # set I and P&I to NA if P doesn't match the patient
-    #t[!t$P, c("Compliant")] <- NA
+    # t[!t$P, c("Compliant")] <- NA
 
     return(t)
   })
@@ -318,17 +317,16 @@ server <- function(input, output, session) {
 
 
   observeEvent(input$recommendation_id, {
-
     updateSelectInput(session, "ward", choices = c("All", unique(patient_results()$ward)))
 
-    
+
     # Input change ###
-    #recommendation_variables <-
-    
-    recommendation_variables <- load_recommendation_variables(input$recommendation_id)   #recommendation_variables
-    
-    
-    vars_population <- recommendation_variables %>%                             # patient_results
+    # recommendation_variables <-
+
+    recommendation_variables <- load_recommendation_variables(input$recommendation_id) # recommendation_variables
+
+
+    vars_population <- recommendation_variables %>% # patient_results
       filter(type == "POPULATION") %>%
       pull(variable_name) %>%
       unique() %>%
@@ -342,7 +340,7 @@ server <- function(input, output, session) {
     ##### Create divs######
     output$population_main <- getPlotUIs(vars_population, "POPULATION")
     setPlotUIOutputs(output, patientdata, vars_population, "POPULATION")
-    
+
     output$intervention_main <- getPlotUIs(vars_intervention, "INTERVENTION")
     setPlotUIOutputs(output, patientdata, vars_intervention, "INTERVENTION")
   })
