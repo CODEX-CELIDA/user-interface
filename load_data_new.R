@@ -32,7 +32,7 @@ patient.dat<-read_csv("data/recommendation_person_data.csv.zip", show_col_types=
                           person_id <= 60 ~ "ward2",
                           person_id >= 61 ~ "ward3"))  %>% 
   mutate(icu_day = 33)
-age<-data_frame(
+age<-tibble(
   person_id = 0:max(patient.dat$person_id),
   age= sample(30:100,max(patient.dat$person_id)+1, replace=TRUE))
 patient.dat<-patient.dat %>%  left_join(age, by = "person_id") 
@@ -102,8 +102,8 @@ load_recommendation_results <- function(recommendation_id) {
   valid_population = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "POPULATION"],
   valid_treatment = unique(gl_summary_rec$person_id) %in% gl_summary_rec$person_id[gl_summary_rec$cohort_category == "INTERVENTION"] )
 
-  patient_results <- patient_results %>% inner_join(gl_summary, by = "person_id")
-  patient_results_test <<- patient_results %>% inner_join(gl_summary, by = "person_id")
+  patient_results <- patient_results %>% left_join(gl_summary, by = "person_id")
+  patient_results_test <<- patient_results %>% left_join(gl_summary, by = "person_id")
 
   return(patient_results)
 }

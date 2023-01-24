@@ -161,8 +161,13 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
       localvar <- var
 
       output[[plotname]] <- renderPlotly({
+        
+        if (is.null(patientdata())) {
+          # no patientdata available
+          return(ggplotly())
+        }
+        
         data <- patientdata() %>% filter(variable_name == localvar)
-        data$value <- data$value %>% type.convert()
         max_dt <- max(patientdata()$datetime)
         min_dt <- min(patientdata()$datetime)
         
@@ -180,7 +185,7 @@ setPlotUIOutputs <- function(output, patientdata, vars, type) {
         } else if (any(!is.na(data$datetime_end))) {
           # time periods
           ggp <- ggplot(data, aes(y = value, yend = value, x = datetime, xend = datetime_end)) +
-            geom_segment(size = 1)
+            geom_segment(linewidth = 1) + geom_point()
         } else if (grepl("_bolus", localvar)) {
           # drug bolus
           ggp <- ggplot(data, aes(x = datetime, ymin = 0, y = value, ymax = value)) +
@@ -270,16 +275,10 @@ server <- function(input, output, session) {
   })
 
 
-print(c(3+recommendation_id))
-#print(c(3+rv$recommendation_id))
-
-
-
   ##### Functions for right column #####
 
 
   patientdata <- reactive({
-    print("load patientdata")
     load_patient(rv$patient_id(), rv$recommendation_id())
   })
 
@@ -311,9 +310,7 @@ print(c(3+recommendation_id))
 
 
 
-  observeEvent(rv$patient_id(), {
-    print("patient id changed")
-  })
+
 
   output$recommendation_text <- renderUI({
     HTML(recommendations[recommendations$id == input$recommendation_id, ]$text)
@@ -321,7 +318,6 @@ print(c(3+recommendation_id))
 
 
   observeEvent(input$recommendation_id, {
-    print("recommendation_id changed")
 
     updateSelectInput(session, "ward", choices = c("All", unique(patient_results()$ward)))
 
