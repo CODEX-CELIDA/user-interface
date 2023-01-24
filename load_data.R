@@ -25,8 +25,8 @@ parse_datetime <- function(s) {
 
 load_dot_env()
 
- GET(url='http://localhost:5004/run')
- base_url <- "http://localhost:5002"
+#GET(url='http://localhost:5004/run')
+base_url <- "http://localhost:5002"
 
 #GET(url = paste0(Sys.getenv("COMPARATOR_SERVER"), "/run"))
 #base_url <- Sys.getenv("UI_BACKEND_SERVER")
@@ -54,7 +54,7 @@ load_recommendation_results <- function(recommendation_id) {
   recommendation_results <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
   gl_summary <- recommendation_results[["summary"]]
   gl_details <- recommendation_results[["detail"]]
-
+  
   patient_results <- patients %>% inner_join(gl_summary, by = "pseudo_fallnr")
   return(patient_results)
 }
@@ -68,8 +68,8 @@ load_patient <- function(patient_id, recommendation_id) {
   patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
   patientdata$datetime <- patientdata$datetime %>% parse_datetime()
   patientdata$datetime_end <- patientdata$datetime_end %>% parse_datetime()
-
+  
   patientdata <- patientdata %>% arrange(variable_name, datetime)
-
+  
   return(patientdata)
 }
