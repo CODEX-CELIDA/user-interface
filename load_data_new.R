@@ -39,6 +39,21 @@ age <- tibble(
   person_id = 0:max(patient.dat$person_id),
   age = sample(30:100, max(patient.dat$person_id) + 1, replace = TRUE)
 )
+
+patient.dat <- read_csv("data/recommendation_person_data.csv.zip") %>%
+  arrange(person_id) %>%
+  mutate(ward = case_when(
+    person_id <= 30 ~ "ward1",
+    person_id <= 60 ~ "ward2",
+    person_id >= 61 ~ "ward3"
+  )) %>%
+  mutate(icu_day = 33)
+age <- tibble(
+  person_id = 0:max(patient.dat$person_id),
+  age = sample(30:100, max(patient.dat$person_id) + 1, replace = TRUE)
+)
+
+
 patient.dat <- patient.dat %>% left_join(age, by = "person_id")
 
 
@@ -46,7 +61,9 @@ recommendation.result <- read_csv("data/recommendation_result.csv.zip", show_col
 cohort_definition <- read_csv("data/cohort_definition.csv.zip", show_col_types = FALSE)
 recommendation_run <- read_csv("data/recommendation_run.csv.zip", show_col_types = FALSE)
 
-
+recommendation.result <- read_csv("data/recommendation_result.csv.zip")
+cohort_definition <- read_csv("data/cohort_definition.csv.zip")
+recommendation_run <- read_csv("data/recommendation_run.csv.zip")
 # load_dot_env()
 # GET(url='http://localhost:5004/run')
 # base_url <- "http://localhost:5002"

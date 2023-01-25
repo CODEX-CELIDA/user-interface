@@ -33,12 +33,45 @@ library(tidyr)
 
 # load data ####################################################################
 
-source("load_data_new.R")
+#source("load_data_new.R")
 
 patient_id <- patients$person_id[1]
 recommendation_id <- recommendations$id[1]
 
 # patient_results <- load_recommendation_results(recommendation_id)
+
+# Drop Down Button #############################################################
+
+
+dropdownButton <- function(label = "", status = c("default", "primary", "success", "info", "warning", "danger"), ..., width = NULL) {
+  
+  status <- match.arg(status)
+  # dropdown button content
+  html_ul <- list(
+    class = "dropdown-menu",
+    style = if (!is.null(width)) 
+      paste0("width: ", validateCssUnit(width), ";"),
+    lapply(X = list(...), FUN = tags$li, style = "margin-left: 10px; margin-right: 10px;")
+  )
+  # dropdown button apparence
+  html_button <- list(
+    class = paste0("btn btn-", status," dropdown-toggle"),
+    type = "button", 
+    `data-toggle` = "dropdown"
+  )
+  html_button <- c(html_button, list(label))
+  html_button <- c(html_button, list(tags$span(class = "caret")))
+  # final result
+  tags$div(
+    class = "dropdown",
+    do.call(tags$button, html_button),
+    do.call(tags$ul, html_ul),
+    tags$script(
+      "$('.dropdown-menu').click(function(e) {
+      e.stopPropagation();
+});")
+  )
+}
 
 
 # app original #################################################################
@@ -78,12 +111,28 @@ ui <- fluidPage(
         selected = "All",
         width = "60%"
       ),
-      selectInput(
-        inputId = "recommendation_id", label = h1("Guideline Recommendation"),
-        choices = setNames(recommendations$id, paste("C", recommendations$id, recommendations$title)),
-        selected = NULL,
-        width = "90%"
+
+      dropdownButton(
+        label = "Guideline Recommendation",
+        status = "default",
+        width = "100%",
+        tags$div(class = "container",
+                 checkboxGroupInput(inputId = "recommendation_id", label = h1("Guideline Recommendation"),
+                                    width = "90%",
+                                    choices = setNames(recommendations$id, paste("C", recommendations$id, recommendations$title))),
+                 selected = NULL)
+        
       ),
+      
+      
+      dateRangeInput(inputId = "daterange1",
+                     label = "Date range:",
+                     start = Sys.Date()-7,
+                     end   = Sys.Date(),
+                     min    = "2021-01-01",
+                     max    = Sys.Date()
+      ),
+  
       align = "center"
     ),
     column(5,
@@ -97,7 +146,6 @@ ui <- fluidPage(
       )
     )
   ),
-
 
 
   #*************************************************************************
@@ -298,7 +346,7 @@ server <- function(input, output, session) {
       "C7" = patient_results()$valid_exposure,
       "C8" = patient_results()$valid_exposure,
       "C9" = patient_results()$valid_exposure,
-      "C10" = patient_results()$valid_exposure
+     "C10" = patient_results()$valid_exposure
     )
 
     # set I and P&I to NA if P doesn't match the patient
