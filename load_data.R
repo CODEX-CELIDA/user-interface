@@ -14,62 +14,134 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with CEOsys Recommendation Checker.  If not, see <https://www.gnu.org/licenses/>.
-
 library(httr)
-library(dplyr)
 library(dotenv)
+library(stringr)
+library(readr)
+library(dplyr)
+library(lubridate)
+# library(urltools)
 
-parse_datetime <- function(s) {
-  return(s %>% str_replace("(\\d\\d):(\\d\\d)$", "\\1\\2") %>% str_replace("\\.\\d{6}", "") %>% as.POSIXct(format = "%Y-%m-%dT%H:%M:%S%z"))
-}
 
-load_dot_env()
-
-# GET(url='http://localhost:5004/run')
-base_url <- "http://localhost:5002"
-
-# GET(url = paste0(Sys.getenv("COMPARATOR_SERVER"), "/run"))
+base_url <- "http://localhost:8001"
 # base_url <- Sys.getenv("UI_BACKEND_SERVER")
 
-req <- POST(url = paste0(base_url, "/token"), body = list(grant_type = "password", username = Sys.getenv("UI_BACKEND_USERNAME"), password = Sys.getenv("UI_BACKEND_PASSWORD")))
-auth.token <- content(req)$access_token
+rec_map <- list(
+  "recommendation_url" = c(
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/sepsis/recommendation/ventilation-plan-ards-tidal-volume",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-ards-peep",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
+    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards"
+  ),
+  "short" = c("No ACT", "Sepsis/Tidal", "C19/Tidal", "PEEP", "p-ACT", "t-ACT", "Proning")
+) %>% as_tibble()
 
-req <- GET(paste0(base_url, "/recommendation/list"), add_headers("Authorization" = paste("Bearer", auth.token)))
-recommendations <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>% as.data.frame()
-
-req <- GET(paste0(base_url, "/patients/list"), add_headers("Authorization" = paste("Bearer", auth.token)))
-patients <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) # %>% as.data.frame
-patients$age <- floor(age_calc(as.Date(patients$birth_date), units = "years"))
-patients$icu_day <- as.numeric(floor(age_calc(as.Date(patients$admission_hospitalisation), units = "days")))
-
-
-load_recommendation_variables <- function(recommendation_id) {
-  req <- GET(paste0(base_url, "/recommendation/variables/", recommendation_id), add_headers("Authorization" = paste("Bearer", auth.token)))
-  recommendation_variables <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
-  return(recommendation_variables)
+load_recommendations <- function() {
+  req <- GET(paste0(base_url, "/recommendation/list"))
+  recommendations <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>%
+    as_tibble() %>%
+    inner_join(rec_map, by = "recommendation_url")
+  return(recommendations)
 }
 
-load_recommendation_results <- function(recommendation_id) {
-  req <- GET(paste0(base_url, "/recommendation/get/", recommendation_id), add_headers("Authorization" = paste("Bearer", auth.token)))
-  recommendation_results <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
-  gl_summary <- recommendation_results[["summary"]]
-  gl_details <- recommendation_results[["detail"]]
+recommendations <- load_recommendations()
 
-  patient_results <- patients %>% inner_join(gl_summary, by = "pseudo_fallnr")
-  return(patient_results)
+
+summarize_category <- function(categories) {
+  if ("population_intervention" %in% categories) {
+    return("PI")
+  } else if ("population" %in% categories) {
+    return("P")
+  } else if ("intervention" %in% categories) {
+    return("I")
+  } else {
+    return("o")
+  }
 }
 
-load_patient <- function(patient_id, recommendation_id) {
-  if (is.null(patient_id) | length(patient_id) == 0) {
+load_patient_list <- function(selected_recommendation_urls, start_datetime, end_datetime) {
+  patients <- tibble()
+
+  if (is.null(selected_recommendation_urls)) {
+    return(patients)
+  }
+
+  for (recommendation_url in selected_recommendation_urls) {
+    req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
+
+    data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+    run_id <- data$run_id
+    pat_data <- data$data %>%
+      as_tibble() %>%
+      mutate(run_id = run_id, url = recommendation_url)
+    patients <- bind_rows(patients, pat_data)
+  }
+
+  run_ids <- patients %>% distinct(run_id, url)
+
+  patients <- patients %>%
+    # make up a ward
+    mutate(ward = sprintf("ITS %02d", (person_id %% 3) + 1)) %>%
+    inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
+    pivot_wider(id_cols = c("person_id", "ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
+    arrange(person_id)
+
+  return(list(patients = patients, run_id = run_ids))
+}
+
+load_recommendation_variables <- function(recommendation_url) {
+  req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
+  data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+  criteria <- data$criterion %>%
+    as_tibble() %>%
+    rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)
+
+  return(criteria)
+}
+
+load_data <- function(person_id, run_id, criterion_name) {
+  if (is.null(person_id) | length(person_id) == 0) {
     return(NULL)
   }
-  # Use token to fetch the actual data.
-  req <- GET(paste0(base_url, "/patient/get/?patient_id=", patient_id, "&recommendation_id=", recommendation_id), add_headers("Authorization" = paste("Bearer", auth.token)))
-  patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
-  patientdata$datetime <- patientdata$datetime %>% parse_datetime()
-  patientdata$datetime_end <- patientdata$datetime_end %>% parse_datetime()
 
-  patientdata <- patientdata %>% arrange(variable_name, datetime)
+  req <- GET(paste0(base_url, "/patient/data/?person_id=", URLencode(as.character(person_id)), "&run_id=", URLencode(as.character(run_id)), "&criterion_name=", URLencode(criterion_name)))
+
+  if (req$status_code != 200) {
+    stop("Error encountered during load_data")
+  }
+
+  patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>% as_tibble()
+
+  patientdata <- patientdata %>%
+    rename(datetime = start_datetime) %>%
+    arrange(datetime)
+
+
+
+  if (("value_as_number" %in% names(patientdata))) {
+    patientdata <- patientdata %>%
+      rename(value = value_as_number)
+  } else if ("drug_dose_as_number" %in% names(patientdata)) {
+    patientdata <- patientdata %>%
+      rename(value = drug_dose_as_number)
+  } else {
+    patientdata <- patientdata %>%
+      mutate(value = TRUE)
+  }
+
+  if (!("end_datetime" %in% names(patientdata))) {
+    patientdata <- patientdata %>%
+      mutate(end_datetime = datetime)
+  }
+
+  if (nrow(patientdata) > 0) {
+    patientdata <- patientdata %>%
+      mutate(datetime = parse_datetime(datetime)) %>%
+      mutate(end_datetime = parse_datetime(end_datetime))
+  }
 
   return(patientdata)
 }
