@@ -123,13 +123,13 @@ ui <- fluidPage(
       # recommendation-Population Row
       wellPanel(
         h1("Population"),
-        uiOutput("population_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "200px", hide.ui = FALSE)
+        uiOutput("population_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       ),
 
       # recommendation-Intervention Row
       wellPanel(
         h1("Intervention"),
-        uiOutput("intervention_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "200px", hide.ui = FALSE)
+        uiOutput("intervention_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       )
     )
   )
@@ -157,7 +157,7 @@ getPlotUIs <- function(vars, type) {
     myTabs <- map(vars, ~ tabPanel(
       title = as.character(.x), # variable title
       wellPanel(
-        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 230),
+        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 300),
         style = "padding:0;margin-bottom:0;"
       )
     ))
@@ -259,7 +259,6 @@ server <- function(input, output, session) {
   # "I" or "o", indicating whether the patient belongs to (P)opulation,
   # (I)ntervention, Population & Intervention (PI) or none (o).
   patient_overview <- reactive({
-    print("load patient overview")
     load_patient_list(isolate(input$recommendation_url), start_datetime = format(input$observation_window[1]), end_datetime = format(input$observation_window[2]))
   })
 

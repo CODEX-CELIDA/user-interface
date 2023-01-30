@@ -114,12 +114,10 @@ load_data <- function(person_id, run_id, criterion_name) {
   }
 
   patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>% as_tibble()
-
+  
   patientdata <- patientdata %>%
     rename(datetime = start_datetime) %>%
     arrange(datetime)
-
-
 
   if (("value_as_number" %in% names(patientdata))) {
     patientdata <- patientdata %>%
@@ -131,14 +129,15 @@ load_data <- function(person_id, run_id, criterion_name) {
     patientdata <- patientdata %>%
       mutate(value = TRUE)
   }
-
+  
   if (!("end_datetime" %in% names(patientdata))) {
     patientdata <- patientdata %>%
       mutate(end_datetime = datetime)
   }
-
+  
   if (nrow(patientdata) > 0) {
     patientdata <- patientdata %>%
+      mutate(end_datetime = coalesce(end_datetime, datetime)) %>% 
       mutate(datetime = parse_datetime(datetime)) %>%
       mutate(end_datetime = parse_datetime(end_datetime))
   }
