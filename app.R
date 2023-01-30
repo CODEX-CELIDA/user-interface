@@ -81,7 +81,7 @@ ui <- fluidPage(
       dateRangeInput(
         inputId = "observation_window",
         label = h2("Date range"),
-        start = Sys.Date() - 7,
+        start = Sys.Date() - 14,
         end = Sys.Date(),
         min = "2021-01-01",
         max = Sys.Date(),
@@ -123,7 +123,7 @@ ui <- fluidPage(
       # recommendation-Population Row
       wellPanel(
         h1("Population"),
-        uiOutput("population_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
+        uiOutput("population_main", height="500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       ),
 
       # recommendation-Intervention Row
@@ -295,14 +295,21 @@ server <- function(input, output, session) {
   options(DT.options = list(pageLength = 25))
   observeEvent(input$recommendation_url, {
     updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
-
-    colnames <- c("Name", "Ward", (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short)
-
+    
+    recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
+    colnames <- c("Name", "Ward", recommendation_names_short)
+    data <- patient_overview_per_ward() %>% select(all_of(colnames))
+      
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
-      DT::datatable(patient_overview_per_ward(),
+      DT::datatable(data,
         rownames = FALSE,
-        selection = list(mode = "single", selected = matrix(c(1, 2), ncol = 2), target = "cell"),
+        selection = list(
+          mode = "single", 
+          target = "cell",
+          selectable=as.matrix(expand.grid(1:nrow(data), 2:ncol(data))),
+          selected = matrix(c(1, 2), ncol = 2)
+          ),
         colnames = colnames,
         options = list(
           columnDefs = list(

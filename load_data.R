@@ -68,7 +68,7 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   if (is.null(selected_recommendation_urls)) {
     return(patients)
   }
-
+  
   for (recommendation_url in selected_recommendation_urls) {
     req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
 
@@ -79,15 +79,18 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
       mutate(run_id = run_id, url = recommendation_url)
     patients <- bind_rows(patients, pat_data)
   }
-
+  
   run_ids <- patients %>% distinct(run_id, url)
-
-  patients <- patients %>%
-    # make up a ward
-    mutate(ward = sprintf("ITS %02d", (person_id %% 3) + 1)) %>%
-    inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
-    pivot_wider(id_cols = c("person_id", "ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
-    arrange(person_id)
+  
+  if(nrow(patients) > 0) {
+    patients <- patients %>%
+      # make up a ward
+      mutate(ward = sprintf("ITS %02d", (person_id %% 3) + 1)) %>%
+      inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
+      pivot_wider(id_cols = c("person_id", "ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
+      arrange(person_id) %>% 
+      mutate(Name=person_id, Ward=ward)    
+  }
 
   return(list(patients = patients, run_id = run_ids))
 }
