@@ -157,7 +157,7 @@ getPlotUIs <- function(vars, type) {
     myTabs <- map(vars, ~ tabPanel(
       title = as.character(.x), # variable title
       wellPanel(
-        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 300),
+        plotlyOutput(paste("plot", type, .x, sep = "_"), height = 350),
         style = "padding:0;margin-bottom:0;"
       )
     ))
@@ -292,22 +292,21 @@ server <- function(input, output, session) {
 
 
   # Patient data table
-  options(DT.options = list(pageLength = 25))
+  options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
     updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
     
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
     colnames <- c("Name", "Ward", recommendation_names_short)
-    data <- patient_overview_per_ward() %>% select(all_of(colnames))
-      
+
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
-      DT::datatable(data,
+      DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
         rownames = FALSE,
         selection = list(
           mode = "single", 
           target = "cell",
-          selectable=as.matrix(expand.grid(1:nrow(data), 2:ncol(data))),
+          selectable=as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames))),
           selected = matrix(c(1, 2), ncol = 2)
           ),
         colnames = colnames,
