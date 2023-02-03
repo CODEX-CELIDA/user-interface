@@ -102,24 +102,6 @@ ui <- fluidPage(
     )
   ),
 
-  fluidRow(
-    column(7,
-           wellPanel(
-             h1("Legend"),
-             uiOutput("legend_text"), align = "left")
-           ),
-    column(5,
-           wellPanel(
-               h1("Comments"),
-               textInput(inputId = "comment",
-                         label = "", 
-                         value = "Make comments on patient's treatment",
-                         width = "100%",
-                         placeholder = NULL),
-               verbatimTextOutput("comment"),
-               verbatimTextOutput("comment_text"), align = "left")
-          )
-  ),
   #*************************************************************************
   # Content Row
 
@@ -132,11 +114,14 @@ ui <- fluidPage(
         h1("Patients"),
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6)
       ),
-      wellPanel(
+            wellPanel(
         h1("Statistics"),
         #DT::dataTableOutput("table_statistics") %>% shinycssloaders::withSpinner(type = 6)
-        DT::dataTableOutput('table_statistics')
-      )
+        #DT::dataTableOutput('table_statistics')
+      ),
+      wellPanel(
+        h1("Legend"),
+        uiOutput("legend_text"), align = "left")
     ),
 
     # Recommendation Column
@@ -144,6 +129,16 @@ ui <- fluidPage(
     column(
       5,
       # recommendation-Text Row
+      wellPanel(
+        h1("Comments"),
+        textAreaInput(inputId = "comment",
+                  label = "", 
+                  value = "Make comments on patient's treatment",
+                  width = "100%",
+                  height = '96px',
+                  placeholder = NULL),
+        verbatimTextOutput("comment"),
+       align = "left"),
 
       # recommendation-Population Row
       wellPanel(
