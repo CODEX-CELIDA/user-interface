@@ -208,3 +208,8 @@ load_data <- function(person_id, run_id, criterion_name) {
 
   return(patientdata)
 }
+
+percentage<-(rep(50, nrow(recommendations)))
+recommendation<-recommendations$short
+dummy_table<-data.frame(recommendation, percentage)
+

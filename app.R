@@ -75,7 +75,7 @@ ui <- fluidPage(
           )
         )
       ),
-      align = "left"
+      align = "center"
     ),
     column(2,
       dateRangeInput(
@@ -87,19 +87,39 @@ ui <- fluidPage(
         max = Sys.Date(),
         width = "100%",
       ),
-      align = "center"
+      
+      align = "left",
     ),
+
     column(
       5,
       wellPanel(
         h1("Guideline Recommendation"),
         htmlOutput("recommendation_text"),
-        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }"))
+        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
+        
       )
     )
   ),
 
-
+  fluidRow(
+    column(7,
+           wellPanel(
+             h1("Legend"),
+             uiOutput("legend_text"), align = "left")
+           ),
+    column(5,
+           wellPanel(
+               h1("Comments"),
+               textInput(inputId = "comment",
+                         label = "", 
+                         value = "Make comments on patient's treatment",
+                         width = "100%",
+                         placeholder = NULL),
+               verbatimTextOutput("comment"),
+               verbatimTextOutput("comment_text"), align = "left")
+          )
+  ),
   #*************************************************************************
   # Content Row
 
@@ -111,6 +131,11 @@ ui <- fluidPage(
       wellPanel(
         h1("Patients"),
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6)
+      ),
+      wellPanel(
+        h1("Statistics"),
+        #DT::dataTableOutput("table_statistics") %>% shinycssloaders::withSpinner(type = 6)
+        DT::dataTableOutput('table_statistics')
       )
     ),
 
@@ -360,7 +385,20 @@ server <- function(input, output, session) {
       HTML(recommendations %>% filter(recommendation_url == rv$selected_recommendation_url()) %>% pull(recommendation_description))
     }
   })
-
+  
+  output$comment_text <- renderText({ input$comment })
+  
+  output$legend_text <- renderUI({
+    HTML("&#10004; - patient is treated according to the recommendation guideline <br>
+         &#x2718; - patient is not treated according to the recommendation guideline <br>
+         (&#10004;) - patient is treated according to the recommendation guideline, but is not in the population<br>
+         (&#x2718;) - patient is not treated according to the recommendation guideline, but is also not in the population
+         ")
+    })
+  ############################################
+  output$table_statistics <- DT::renderDataTable(DT::datatable(dummy_table %>% select(all_of(colnames)),
+                                                               colnames = recommendation))
+###################################################
   observeEvent(rv$selected_recommendation_url(),
     {
       rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
