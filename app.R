@@ -310,7 +310,32 @@ server <- function(input, output, session) {
     list(rv$selected_person_id(), rv$selected_recommendation_url())
   })
 
-
+  #######footer for patientable
+  jsCode <- "function(row, data, start, end, display) {var api = this.api(), data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
+  
+  getTotal <- function(data,index){
+    
+    if(index < 1 || index > ncol(data)){
+      return("")
+    }
+    col <- data[,index]
+    col <- gsub("[P]","0",col) #patients in the population but not treated -> set to 0
+    col <- gsub("[PI]","1",col) #set patients which are in the population and treated -> set to 1
+    col <- suppressWarnings(as.numeric(col))
+    if(all(is.na(col))){
+      return("")
+    }
+    mean(col) #### calculate the mean of 0 and 1 to get the average of correctly treated people
+  }
+  
+  Total <- reactive({
+    getTotal(patient_overview_per_ward() %>% select(all_of(colnames)),3) ############Summary only for 1 column has to be adapted
+  })
+  ##### creates header and footer
+  cont <- htmltools::withTags(table(
+    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
+  ))
+#########
   # Patient data table
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
@@ -320,6 +345,7 @@ server <- function(input, output, session) {
     colnames <- c("Name", "Ward", recommendation_names_short)
 
     output$patienttable <- DT::renderDataTable(
+      jsCode <- sub("MYTOTAL",Total(),jsCode),
       server = FALSE,
       DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
         rownames = FALSE,
@@ -330,7 +356,9 @@ server <- function(input, output, session) {
           selected = matrix(c(1, 2), ncol = 2)
           ),
         colnames = colnames,
+        container = cont, ##### get footer
         options = list(
+          footerCallback = JS(jsCode), ##########
           columnDefs = list(
             list(
               # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
@@ -390,10 +418,7 @@ server <- function(input, output, session) {
          (&#x2718;) - patient is not treated according to the recommendation guideline, but is also not in the population
          ")
     })
-  ############################################
-  output$table_statistics <- DT::renderDataTable(DT::datatable(dummy_table %>% select(all_of(colnames)),
-                                                               colnames = recommendation))
-###################################################
+ 
   observeEvent(rv$selected_recommendation_url(),
     {
       rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
