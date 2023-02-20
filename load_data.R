@@ -98,14 +98,14 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   #'
   
   patients <- tibble()
-
+  
   if (is.null(selected_recommendation_urls)) {
     return(patients)
   }
   
   for (recommendation_url in selected_recommendation_urls) {
     req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
-
+    
     data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
     run_id <- data$run_id
     pat_data <- data$data %>%
@@ -125,7 +125,7 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
       arrange(person_id) %>% 
       mutate(Name=person_id, Ward=ward)    
   }
-
+  
   return(list(patients = patients, run_id = run_ids))
 }
 
@@ -146,7 +146,7 @@ load_recommendation_variables <- function(recommendation_url) {
   criteria <- data$criterion %>%
     as_tibble() %>%
     rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)
-
+  
   return(criteria)
 }
 
@@ -170,19 +170,19 @@ load_data <- function(person_id, run_id, criterion_name) {
   if (is.null(person_id) | length(person_id) == 0) {
     return(NULL)
   }
-
+  
   req <- GET(paste0(base_url, "/patient/data/?person_id=", URLencode(as.character(person_id)), "&run_id=", URLencode(as.character(run_id)), "&criterion_name=", URLencode(criterion_name)))
-
+  
   if (req$status_code != 200) {
     stop("Error encountered during load_data")
   }
-
+  
   patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>% as_tibble()
   
   patientdata <- patientdata %>%
     rename(datetime = start_datetime) %>%
     arrange(datetime)
-
+  
   if (("value_as_number" %in% names(patientdata))) {
     patientdata <- patientdata %>%
       rename(value = value_as_number)
@@ -205,11 +205,10 @@ load_data <- function(person_id, run_id, criterion_name) {
       mutate(datetime = parse_datetime(datetime)) %>%
       mutate(end_datetime = parse_datetime(end_datetime))
   }
-
+  
   return(patientdata)
 }
 
 percentage<-(rep(50, nrow(recommendations)))
 recommendation<-recommendations$short
 dummy_table<-data.frame(recommendation, percentage)
-
