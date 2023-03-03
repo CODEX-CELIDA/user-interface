@@ -81,7 +81,7 @@ ui <- fluidPage(
            dateRangeInput(
              inputId = "observation_window",
              label = h2("Date range"),
-             start = Sys.Date() - 14,
+             start = Sys.Date() - 65,
              end = Sys.Date(),
              min = "2021-01-01",
              max = Sys.Date(),
@@ -116,7 +116,7 @@ ui <- fluidPage(
       ),
       wellPanel(
         h1("Statistics"),
-        #DT::dataTableOutput("table_statistics") %>% shinycssloaders::withSpinner(type = 6)
+        DT::dataTableOutput("statisticstable") %>% shinycssloaders::withSpinner(type = 6)
         #DT::dataTableOutput('table_statistics')
       ),
       wellPanel(
@@ -154,7 +154,6 @@ ui <- fluidPage(
     )
   )
 )
-
 
 getPlotUIs <- function(vars, type) {
   #' @title getPlotUIs
@@ -263,9 +262,27 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
     })
   }
 }
+##############################################################################
+#Footer
+##############################################################################
+jsCode <- "function(row, data, start, end, display) {var api = this.api(), data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
 
 
-
+getTotal <- function(data,index){
+  
+  if(index < 1 || index > ncol(data)){
+    return("")
+  }
+  col <- data[,index]
+  col <- gsub("P","0",col) #patients in the population but not treated -> set to 0
+  col <- gsub("PI","1",col) #set patients which are in the population and treated -> set to 1
+  col <- suppressWarnings(as.numeric(col))
+  if(all(is.na(col))){
+    return("")
+  }
+  mean(col) #### calculate the mean of 0 and 1 to get the average of correctly treated people
+}
+##############################################################################
 
 
 
@@ -310,32 +327,20 @@ server <- function(input, output, session) {
     list(rv$selected_person_id(), rv$selected_recommendation_url())
   })
   
-  #######footer for patientable
-  jsCode <- "function(row, data, start, end, display) {var api = this.api(), data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
   
-  getTotal <- function(data,index){
-    
-    if(index < 1 || index > ncol(data)){
-      return("")
-    }
-    col <- data[,index]
-    col <- gsub("[P]","0",col) #patients in the population but not treated -> set to 0
-    col <- gsub("[PI]","1",col) #set patients which are in the population and treated -> set to 1
-    col <- suppressWarnings(as.numeric(col))
-    if(all(is.na(col))){
-      return("")
-    }
-    mean(col) #### calculate the mean of 0 and 1 to get the average of correctly treated people
-  }
-  
+  ##############################################################################
+  #Footer
+  ##############################################################################
   Total <- reactive({
-    getTotal(patient_overview_per_ward() %>% select(all_of(colnames)),3) ############Summary only for 1 column has to be adapted
+    getTotal("ward", 5)
   })
-  ##### creates header and footer
+  
   cont <- htmltools::withTags(table(
-    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
+    tableHeader(names("ward")),tableFooter(names("ward"))
   ))
-  #########
+  ##############################################################################
+  
+  
   # Patient data table
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
@@ -348,7 +353,14 @@ server <- function(input, output, session) {
       jsCode <- sub("MYTOTAL",Total(),jsCode),
       server = FALSE,
       DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
+                    container = cont,
                     rownames = FALSE,
+                    filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
+                                position = 'top',
+                                pageLength = 5,
+                                autoWidth = TRUE,
+                                clear = TRUE
+                      ),
                     selection = list(
                       mode = "single", 
                       target = "cell",
@@ -356,9 +368,8 @@ server <- function(input, output, session) {
                       selected = matrix(c(1, 2), ncol = 2)
                     ),
                     colnames = colnames,
-                    container = cont, ##### get footer
                     options = list(
-                      footerCallback = JS(jsCode), ##########
+                      footerCallback = JS(jsCode),
                       columnDefs = list(
                         list(
                           # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
@@ -383,18 +394,35 @@ server <- function(input, output, session) {
                       )
                     )
       ) %>% formatStyle(seq(3, length(colnames)),
-                        backgroundColor = styleEqual(
+                        backgroundColor = styleEqual( #styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
                           # set cell background color of PI to green, of P to red
                           c("PI", "P"),
                           c(
                             rgb(200, 230, 200, 255, 255, 255),
                             rgb(230, 200, 200, 255, 255, 255)
                           )
+                        ),
+                        #backgroundSize = '100% 100%',
+                        #backgroundRepeat = 'no-repeat',
+                        #backgroundPosition = 'center'
                         )
-      )
     )
   })
   
+
+  output$legend_text <- renderUI({
+    div(style = "display: inline;",
+        list( div(style="display: inline; width: 2%; background-color:rgb(200, 230, 200);", HTML("&#10004;")),
+              "- patient is treated according to the recommendation guideline",br(),
+              div(style="display: inline; width: 2%; background-color:rgb(230, 200, 200);", HTML("&#x2718;")),
+              " - patient is not treated according to the recommendation guideline",br(),
+              div(style="display: inline; ", HTML("(&#10004;)")),
+              " - patient is treated according to the recommendation guideline, but is not in the population",br(),
+              div(style="display: inline; ", HTML("(&#x2718;)")),
+              "- patient is not treated according to the recommendation guideline, but is also not in the population"
+        )
+    )
+  })
   
   ##### Functions for right column #####
   # observe population tab panel change - not required currently because all tab
@@ -407,16 +435,6 @@ server <- function(input, output, session) {
     if (!is.null(rv$selected_recommendation_url())) {
       HTML(recommendations %>% filter(recommendation_url == rv$selected_recommendation_url()) %>% pull(recommendation_description))
     }
-  })
-  
-  output$comment_text <- renderText({ input$comment })
-  
-  output$legend_text <- renderUI({
-    HTML("&#10004; - patient is treated according to the recommendation guideline <br>
-         &#x2718; - patient is not treated according to the recommendation guideline <br>
-         (&#10004;) - patient is treated according to the recommendation guideline, but is not in the population<br>
-         (&#x2718;) - patient is not treated according to the recommendation guideline, but is also not in the population
-         ")
   })
   
   observeEvent(rv$selected_recommendation_url(),

@@ -97,7 +97,7 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   #' run_ids <- result$run_id
   #'
   
-  patients <- tibble()
+  patients <- tibble() #data.frame(stringsAsFactors = TRUE); dat[, character_vars] <- lapply(dat[, character_vars], as.factor)
   
   if (is.null(selected_recommendation_urls)) {
     return(patients)
