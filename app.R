@@ -265,22 +265,23 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 ##############################################################################
 #Footer
 ##############################################################################
-jsCode <- "function(row, data, start, end, display) {var api = this.api(), data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
+#jsCode <- "function(row, data, start, end, display) {var api = this.api(),data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
 
 
-getTotal <- function(data,index){
-  
-  if(index < 1 || index > ncol(data)){
-    return("")
+getPercentage<-function(data){
+  df_1<-data %>% select(all_of(colnames))
+  for (var in names(df_1)){
+    x<-df_1 %>% count(var)  
+    if(length(which(x[,1] == c('PI', 'P'))) !=0) {
+      percentage<-(x[which(x[,1] == 'PI'),"n"]/(x[which(x[,1] == 'P'),"n"]+x[which(x[,1] == 'PI'),"n"]))*100
+    } else if (length(which(x[,1] == 'P')) !=0){
+      percentage<-0
+    } else{
+      percentage<-100
+    } 
+    
+    print(percentage)
   }
-  col <- data[,index]
-  col <- gsub("P","0",col) #patients in the population but not treated -> set to 0
-  col <- gsub("PI","1",col) #set patients which are in the population and treated -> set to 1
-  col <- suppressWarnings(as.numeric(col))
-  if(all(is.na(col))){
-    return("")
-  }
-  mean(col) #### calculate the mean of 0 and 1 to get the average of correctly treated people
 }
 ##############################################################################
 
@@ -298,7 +299,7 @@ server <- function(input, output, session) {
   patient_overview <- reactive({
     load_patient_list(isolate(input$recommendation_url), start_datetime = format(input$observation_window[1]), end_datetime = format(input$observation_window[2]))
   })
-  
+
   # Patient overview filtered by ward
   # Second reactive variable that just filters the patient_overview by the ward
   # This is used to not having to update the patient_overview() each time a
@@ -331,13 +332,14 @@ server <- function(input, output, session) {
   ##############################################################################
   #Footer
   ##############################################################################
-  Total <- reactive({
-    getTotal("ward", 5)
-  })
-  
-  cont <- htmltools::withTags(table(
-    tableHeader(names("ward")),tableFooter(names("ward"))
-  ))
+# Total <- reactive({
+#    getPercentage(patient_overview_per_ward())
+#  })
+#  
+#  cont <- htmltools::withTags(table(
+#    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),
+#    tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
+#  ))
   ##############################################################################
   
   
@@ -350,10 +352,10 @@ server <- function(input, output, session) {
     colnames <- c("Name", "Ward", recommendation_names_short)
     
     output$patienttable <- DT::renderDataTable(
-      jsCode <- sub("MYTOTAL",Total(),jsCode),
+      #jsCode <- sub("MYTOTAL",Total(),jsCode),
       server = FALSE,
       DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
-                    container = cont,
+                    #container = cont,
                     rownames = FALSE,
                     filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
                                 position = 'top',
@@ -369,7 +371,7 @@ server <- function(input, output, session) {
                     ),
                     colnames = colnames,
                     options = list(
-                      footerCallback = JS(jsCode),
+                      #footerCallback = JS(jsCode),
                       columnDefs = list(
                         list(
                           # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
@@ -402,13 +404,37 @@ server <- function(input, output, session) {
                             rgb(230, 200, 200, 255, 255, 255)
                           )
                         ),
-                        #backgroundSize = '100% 100%',
+                        #backgroundSize = '98% 95%',
                         #backgroundRepeat = 'no-repeat',
                         #backgroundPosition = 'center'
                         )
     )
   })
   
+  
+  options(DT.options = list(pageLength = 20))
+  observeEvent(input$recommendation_url, {
+    updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
+    
+    recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
+    colnames <- c("Name", "Ward", recommendation_names_short)
+    
+    output$statisticstable <- DT::renderDataTable(
+      #jsCode <- sub("MYTOTAL",Total(),jsCode),
+      server = FALSE,
+      DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
+                    rownames = FALSE,
+                    colnames = colnames
+      
+      )
+    )
+    print(names(patient_overview_per_ward() %>% select(all_of(colnames))))
+  })
+
+  
+  
+   
+
 
   output$legend_text <- renderUI({
     div(style = "display: inline;",
