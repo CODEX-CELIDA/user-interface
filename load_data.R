@@ -97,7 +97,7 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   #' run_ids <- result$run_id
   #'
   
-  patients <- tibble() #data.frame(stringsAsFactors = TRUE); dat[, character_vars] <- lapply(dat[, character_vars], as.factor)
+  patients <- tibble()
   
   if (is.null(selected_recommendation_urls)) {
     return(patients)
@@ -125,11 +125,14 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
       arrange(person_id) %>% 
       mutate(Name=person_id, Ward=ward)    
   }
-  #############
-  #Total <-
-    ############
-  #return(list(patients = patients, run_id = run_ids, total = Total))
-  return(list(patients = patients, run_id = run_ids))
+  
+  stats <- patients %>%
+    select(all_of(cols)) %>% 
+    mutate(across(everything(), ~ if_else(. == "P", 1, if_else(. == "PI", -1, 0)))) %>%
+    summarize(across(everything(), ~ sum(. == 1) / sum(. != 0))) %>% 
+    mutate(across(everything(),  ~ if_else(is.na(.), 0, .)))
+  
+  return(list(patients = patients, run_id = run_ids, stats = stats))
 }
 
 load_recommendation_variables <- function(recommendation_url) {
@@ -211,7 +214,3 @@ load_data <- function(person_id, run_id, criterion_name) {
   
   return(patientdata)
 }
-
-percentage<-(rep(50, nrow(recommendations)))
-recommendation<-recommendations$short
-dummy_table<-data.frame(recommendation, percentage)

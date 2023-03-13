@@ -48,65 +48,62 @@ ui <- fluidPage(
   ),
   fluidRow(
     column(1,
-           selectInput(
-             inputId = "ward",
-             label = h2("Ward"),
-             choices = c("All"),
-             selected = "All",
-             width = "80%"
-           ),
-           align = "center"
+      selectInput(
+        inputId = "ward",
+        label = h2("Ward"),
+        choices = c("All"),
+        selected = "All",
+        width = "80%"
+      ),
+      align = "center"
     ),
     column(4,
-           h2("Guideline Recommendation"),
-           dropdownButton(
-             label = "Guideline Recommendation",
-             status = "default",
-             width = "100%",
-             tags$div(
-               class = "container",
-               checkboxGroupInput(
-                 inputId = "recommendation_url",
-                 label = "Guideline Recommendation",
-                 width = "100%",
-                 choiceNames = lapply(recommendations %>% str_glue_data("<b>[{short}]</b> {recommendation_title}"), HTML),
-                 choiceValues = recommendations$recommendation_url,
-                 selected = recommendations$recommendation_url
-               )
-             )
-           ),
-           align = "center"
+      h2("Guideline Recommendation"),
+      dropdownButton(
+        label = "Guideline Recommendation",
+        status = "default",
+        width = "100%",
+        tags$div(
+          class = "container",
+          checkboxGroupInput(
+            inputId = "recommendation_url",
+            label = "Guideline Recommendation",
+            width = "100%",
+            choiceNames = lapply(recommendations %>% str_glue_data("<b>[{short}]</b> {recommendation_title}"), HTML),
+            choiceValues = recommendations$recommendation_url,
+            selected = recommendations$recommendation_url
+          )
+        )
+      ),
+      align = "center"
     ),
     column(2,
-           dateRangeInput(
-             inputId = "observation_window",
-             label = h2("Date range"),
-             start = Sys.Date() - 65,
-             end = Sys.Date(),
-             min = "2021-01-01",
-             max = Sys.Date(),
-             width = "100%",
-           ),
-           
-           align = "left",
+      dateRangeInput(
+        inputId = "observation_window",
+        label = h2("Date range"),
+        start = Sys.Date() - 65,
+        end = Sys.Date(),
+        min = "2021-01-01",
+        max = Sys.Date(),
+        width = "100%",
+      ),
+      align = "left",
     ),
-    
     column(
       5,
       wellPanel(
         h1("Guideline Recommendation"),
         htmlOutput("recommendation_text"),
         tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
-        
       )
     )
   ),
-  
+
   #*************************************************************************
   # Content Row
-  
+
   fluidRow(
-    
+
     # Patient Table Column
     column(
       7,
@@ -115,37 +112,37 @@ ui <- fluidPage(
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6)
       ),
       wellPanel(
-        h1("Statistics"),
-        DT::dataTableOutput("statisticstable") %>% shinycssloaders::withSpinner(type = 6)
-        #DT::dataTableOutput('table_statistics')
-      ),
-      wellPanel(
         h1("Legend"),
-        uiOutput("legend_text"), align = "left")
+        uiOutput("legend_text"),
+        align = "left"
+      )
     ),
-    
+
     # Recommendation Column
-    
+
     column(
       5,
       # recommendation-Text Row
       wellPanel(
         h1("Comments"),
-        textAreaInput(inputId = "comment",
-                      label = "", 
-                      value = "Make comments on patient's treatment",
-                      width = "100%",
-                      height = '96px',
-                      placeholder = NULL),
+        textAreaInput(
+          inputId = "comment",
+          label = "",
+          value = "Make comments on patient's treatment",
+          width = "100%",
+          height = "96px",
+          placeholder = NULL
+        ),
         verbatimTextOutput("comment"),
-        align = "left"),
-      
+        align = "left"
+      ),
+
       # recommendation-Population Row
       wellPanel(
         h1("Population"),
-        uiOutput("population_main", height="500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
+        uiOutput("population_main", height = "500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       ),
-      
+
       # recommendation-Intervention Row
       wellPanel(
         h1("Intervention"),
@@ -180,7 +177,7 @@ getPlotUIs <- function(vars, type) {
         style = "padding:0;margin-bottom:0;"
       )
     ))
-    
+
     do.call(tabsetPanel, c(myTabs, list(id = glue("{type}Panel"))))
   }))
 }
@@ -213,18 +210,18 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
     # per variable_name. This is intended at this point in order to show each
     # variable just once, but may not be correct behaviour in general.
     distinct(variable_name, .keep_all = TRUE)
-  
+
   for (i in seq_len(nrow(vars))) {
     var <- vars$variable_name[i]
     criterion_name <- vars$criterion_name[i]
-    
-    
+
+
     local({
       plotname <- paste("plot", type, var, sep = "_")
       localvar <- var
-      
+
       data <- load_data(person_id = person_id, run_id = run_id, criterion_name = criterion_name)
-      
+
       output[[plotname]] <- renderPlotly({
         if (is.null(data) || nrow(data) == 0) {
           # no data
@@ -253,44 +250,21 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
             geom_line() +
             geom_point()
         }
-        
+
         ggplotly(ggp +
-                   xlab("Date") +
-                   ylab(localvar) +
-                   coord_cartesian(xlim = c(min_dt, max_dt)))
+          xlab("Date") +
+          ylab(localvar) +
+          coord_cartesian(xlim = c(min_dt, max_dt)))
       })
     })
   }
 }
 ##############################################################################
-#Footer
-##############################################################################
-#jsCode <- "function(row, data, start, end, display) {var api = this.api(),data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
-
-
-getPercentage<-function(data){
-  df_1<-data %>% select(all_of(colnames))
-  for (var in names(df_1)){
-    x<-df_1 %>% count(var)  
-    if(length(which(x[,1] == c('PI', 'P'))) !=0) {
-      percentage<-(x[which(x[,1] == 'PI'),"n"]/(x[which(x[,1] == 'P'),"n"]+x[which(x[,1] == 'PI'),"n"]))*100
-    } else if (length(which(x[,1] == 'P')) !=0){
-      percentage<-0
-    } else{
-      percentage<-100
-    } 
-    
-    print(percentage)
-  }
-}
-##############################################################################
-
-
 
 ############# Server ############
 server <- function(input, output, session) {
   # REACTIVE VALUES
-  
+
   # Overview of patients and the P/I state (for left side)
   # This tibble contains one patient per row, "name" and "ward" as columns and
   # for each selected guideline recommendations a column with one of "PI", "P",
@@ -311,7 +285,7 @@ server <- function(input, output, session) {
       return(patient_overview()$patients %>% filter(ward == input$ward))
     }
   })
-  
+
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
   rv$selected_person_id <- reactive({
@@ -322,187 +296,165 @@ server <- function(input, output, session) {
       input$recommendation_url[input$patienttable_cells_selected[2] - 1]
     }
   })
-  
+
   # used to observe if either person_id or recommendation_url has changed
   rv$selection_changed <- reactive({
     list(rv$selected_person_id(), rv$selected_recommendation_url())
   })
-  
-  
+
+
   ##############################################################################
-  #Footer
+  # Footer
   ##############################################################################
-# Total <- reactive({
-#    getPercentage(patient_overview_per_ward())
-#  })
-#  
-#  cont <- htmltools::withTags(table(
-#    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),
-#    tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
-#  ))
+  # Total <- reactive({
+  #    getPercentage(patient_overview_per_ward())
+  #  })
+  #
+  #  cont <- htmltools::withTags(table(
+  #    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),
+  #    tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
+  #  ))
   ##############################################################################
-  
-  
+
+  jsCode <- "function(row, data, start, end, display) {var api = this.api(),data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
+
+
   # Patient data table
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
     updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
-    
+
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
     colnames <- c("Name", "Ward", recommendation_names_short)
-    
+
     output$patienttable <- DT::renderDataTable(
-      #jsCode <- sub("MYTOTAL",Total(),jsCode),
       server = FALSE,
       DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
-                    #container = cont,
-                    rownames = FALSE,
-                    filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
-                                position = 'top',
-                                pageLength = 5,
-                                autoWidth = TRUE,
-                                clear = TRUE
-                      ),
-                    selection = list(
-                      mode = "single", 
-                      target = "cell",
-                      selectable=as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames))),
-                      selected = matrix(c(1, 2), ncol = 2)
-                    ),
-                    colnames = colnames,
-                    options = list(
-                      #footerCallback = JS(jsCode),
-                      columnDefs = list(
-                        list(
-                          # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
-                          render = JS(
-                            "function(data, type, row, meta) {",
-                            "if (type === 'display') {",
-                            "  if (data == 'PI') {",
-                            "    return '&#10004;'",
-                            "  } else if (data == 'P') {",
-                            "    return '&#x2718;'",
-                            "  } else if (data == 'I') {",
-                            "    return '(&#10004;)'",
-                            "  } else if (data == 'o') {",
-                            "    return '(&#x2718;)';",
-                            "  }",
-                            "}",
-                            "return data",
-                            "}"
-                          ),
-                          className = "dt-center", targets = seq(length(colnames) - 1)
-                        )
-                      )
-                    )
+        # container = cont,
+        rownames = FALSE,
+        filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
+          position = "top",
+          pageLength = 5,
+          autoWidth = TRUE,
+          clear = TRUE
+        ),
+        selection = list(
+          mode = "single",
+          target = "cell",
+          selectable = as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames))),
+          selected = matrix(c(1, 2), ncol = 2)
+        ),
+        colnames = colnames,
+        options = list(
+          footerCallback = JS(sub("MYTOTAL", "100", jsCode)),
+          columnDefs = list(
+            list(
+              # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
+              render = JS(
+                "function(data, type, row, meta) {",
+                "if (type === 'display') {",
+                "  if (data == 'PI') {",
+                "    return '&#10004;'",
+                "  } else if (data == 'P') {",
+                "    return '&#x2718;'",
+                "  } else if (data == 'I') {",
+                "    return '(&#10004;)'",
+                "  } else if (data == 'o') {",
+                "    return '(&#x2718;)';",
+                "  }",
+                "}",
+                "return data",
+                "}"
+              ),
+              className = "dt-center", targets = seq(length(colnames) - 1)
+            )
+          )
+        )
       ) %>% formatStyle(seq(3, length(colnames)),
-                        backgroundColor = styleEqual( #styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
-                          # set cell background color of PI to green, of P to red
-                          c("PI", "P"),
-                          c(
-                            rgb(200, 230, 200, 255, 255, 255),
-                            rgb(230, 200, 200, 255, 255, 255)
-                          )
-                        ),
-                        #backgroundSize = '98% 95%',
-                        #backgroundRepeat = 'no-repeat',
-                        #backgroundPosition = 'center'
-                        )
-    )
-  })
-  
-  
-  options(DT.options = list(pageLength = 20))
-  observeEvent(input$recommendation_url, {
-    updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
-    
-    recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
-    colnames <- c("Name", "Ward", recommendation_names_short)
-    
-    output$statisticstable <- DT::renderDataTable(
-      #jsCode <- sub("MYTOTAL",Total(),jsCode),
-      server = FALSE,
-      DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
-                    rownames = FALSE,
-                    colnames = colnames
-      
+        backgroundColor = styleEqual( # styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
+          # set cell background color of PI to green, of P to red
+          c("PI", "P"),
+          c(
+            rgb(200, 230, 200, 255, 255, 255),
+            rgb(230, 200, 200, 255, 255, 255)
+          )
+        ),
+        # backgroundSize = '98% 95%',
+        # backgroundRepeat = 'no-repeat',
+        # backgroundPosition = 'center'
       )
     )
-    print(names(patient_overview_per_ward() %>% select(all_of(colnames))))
   })
-
-  
-  
-   
-
 
   output$legend_text <- renderUI({
-    div(style = "display: inline;",
-        list( div(style="display: inline; width: 2%; background-color:rgb(200, 230, 200);", HTML("&#10004;")),
-              "- patient is treated according to the recommendation guideline",br(),
-              div(style="display: inline; width: 2%; background-color:rgb(230, 200, 200);", HTML("&#x2718;")),
-              " - patient is not treated according to the recommendation guideline",br(),
-              div(style="display: inline; ", HTML("(&#10004;)")),
-              " - patient is treated according to the recommendation guideline, but is not in the population",br(),
-              div(style="display: inline; ", HTML("(&#x2718;)")),
-              "- patient is not treated according to the recommendation guideline, but is also not in the population"
-        )
+    div(
+      style = "display: inline;",
+      list(
+        div(style = "display: inline; width: 2%; background-color:rgb(200, 230, 200);", HTML("&#10004;")),
+        "- patient is treated according to the recommendation guideline", br(),
+        div(style = "display: inline; width: 2%; background-color:rgb(230, 200, 200);", HTML("&#x2718;")),
+        " - patient is not treated according to the recommendation guideline", br(),
+        div(style = "display: inline; ", HTML("(&#10004;)")),
+        " - patient is treated according to the recommendation guideline, but is not in the population", br(),
+        div(style = "display: inline; ", HTML("(&#x2718;)")),
+        "- patient is not treated according to the recommendation guideline, but is also not in the population"
+      )
     )
   })
-  
+
   ##### Functions for right column #####
   # observe population tab panel change - not required currently because all tab
   # contents are set simultaneously
   # observeEvent(input$POPULATIONPanel, {
   #  #browser()
   # })
-  
+
   output$recommendation_text <- renderUI({
     if (!is.null(rv$selected_recommendation_url())) {
       HTML(recommendations %>% filter(recommendation_url == rv$selected_recommendation_url()) %>% pull(recommendation_description))
     }
   })
-  
+
   observeEvent(rv$selected_recommendation_url(),
-               {
-                 rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
-                 rv$vars_population <- rv$recommendation_criteria %>%
-                   filter(type == "population") %>%
-                   pull(variable_name) %>%
-                   unique() %>%
-                   as.list()
-                 
-                 rv$vars_intervention <- rv$recommendation_criteria %>%
-                   filter(type == "intervention") %>%
-                   pull(variable_name) %>%
-                   unique() %>%
-                   as.list()
-                 
-                 #### Create divs######
-                 output$population_main <- getPlotUIs(rv$vars_population, "population")
-                 output$intervention_main <- getPlotUIs(rv$vars_intervention, "intervention")
-               },
-               priority = 1 # make sure this is run before observeEvent(rv$selection_changed())
+    {
+      rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
+      rv$vars_population <- rv$recommendation_criteria %>%
+        filter(type == "population") %>%
+        pull(variable_name) %>%
+        unique() %>%
+        as.list()
+
+      rv$vars_intervention <- rv$recommendation_criteria %>%
+        filter(type == "intervention") %>%
+        pull(variable_name) %>%
+        unique() %>%
+        as.list()
+
+      #### Create divs######
+      output$population_main <- getPlotUIs(rv$vars_population, "population")
+      output$intervention_main <- getPlotUIs(rv$vars_intervention, "intervention")
+    },
+    priority = 1 # make sure this is run before observeEvent(rv$selection_changed())
   )
-  
+
   observeEvent(rv$selection_changed(),
-               {
-                 if (is.null(rv$selected_recommendation_url())) {
-                   return()
-                 }
-                 
-                 run_id <- patient_overview()$run_id %>%
-                   filter(url == rv$selected_recommendation_url()) %>%
-                   pull(run_id)
-                 
-                 min_dt <- as.POSIXct(format(input$observation_window[1]))
-                 max_dt <- as.POSIXct(format(input$observation_window[2]))
-                 
-                 
-                 setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "population", min_dt = min_dt, max_dt = max_dt)
-                 setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "intervention", min_dt = min_dt, max_dt = max_dt)
-               },
-               priority = 0 # make sure this is run after observeEvent(rv$selected_recommendation_url(), ...)
+    {
+      if (is.null(rv$selected_recommendation_url())) {
+        return()
+      }
+
+      run_id <- patient_overview()$run_id %>%
+        filter(url == rv$selected_recommendation_url()) %>%
+        pull(run_id)
+
+      min_dt <- as.POSIXct(format(input$observation_window[1]))
+      max_dt <- as.POSIXct(format(input$observation_window[2]))
+
+
+      setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "population", min_dt = min_dt, max_dt = max_dt)
+      setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "intervention", min_dt = min_dt, max_dt = max_dt)
+    },
+    priority = 0 # make sure this is run after observeEvent(rv$selected_recommendation_url(), ...)
   )
 }
 
