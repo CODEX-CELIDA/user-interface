@@ -15,24 +15,19 @@
 #  You should have received a copy of the GNU General Public License
 #  along with CEOsys Recommendation Checker.  If not, see <https://www.gnu.org/licenses/>.
 
+library(tidyverse)
 library(shiny)
-library(ggplot2)
 library(shinythemes)
 library(DT)
 library(eeptools)
-library(stringr)
-library(dplyr)
 library(jsonlite)
-library(httr)
-library(purrr)
 library(plotly)
 library(glue)
 library(dotenv)
-library(readr)
-library(tidyr)
 library(shinycssloaders)
 
-source("load_data.R")
+#source("load_data.R")
+source("load_data_devel.R")
 source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
@@ -128,10 +123,9 @@ ui <- fluidPage(
         textAreaInput(
           inputId = "comment",
           label = "",
-          value = "Make comments on patient's treatment",
+          placeholder = "Make comments on patient's treatment",
           width = "100%",
           height = "96px",
-          placeholder = NULL
         ),
         verbatimTextOutput("comment"),
         align = "left"
@@ -306,17 +300,26 @@ server <- function(input, output, session) {
   ##############################################################################
   # Footer
   ##############################################################################
-  # Total <- reactive({
-  #    getPercentage(patient_overview_per_ward())
-  #  })
-  #
-  #  cont <- htmltools::withTags(table(
-  #    tableHeader(names(patient_overview_per_ward() %>% select(all_of(colnames)))),
-  #    tableFooter(names(patient_overview_per_ward() %>% select(all_of(colnames))))
-  #  ))
+
+  footerJS <- "
+  function(row, data, start, end, display) {
+    var api = this.api(), data;
+    // Remove the formatting to get integer data for summation
+    var intVal = function (i, match) {
+        return typeof i === 'string' ?  (i ===  match ? 1 : 0) : typeof i === 'number' ? i : 0;
+    };
+    for(i=2; i<api.columns().nodes().length;i++) {
+      var p = api.column(i).data().reduce(function(a, b) {return intVal(a, '(✔)') + intVal(b, '(✔)') });
+      var pi = api.column(i).data().reduce(function(a, b) {return intVal(a, '✔') + intVal(b, '✔') });
+      var ratio = p+pi > 0 ? (pi/(p+pi)*100) : 0;
+      $( api.column(i).footer() ).html(ratio.toFixed(0) + '%');
+    }
+  
+  }"
+  
   ##############################################################################
 
-  jsCode <- "function(row, data, start, end, display) {var api = this.api(),data;$( api.column(1).footer() ).html('Total: ' + MYTOTAL);}"
+  
 
 
   # Patient data table
@@ -329,8 +332,9 @@ server <- function(input, output, session) {
 
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
-      DT::datatable(patient_overview_per_ward() %>% select(all_of(colnames)),
-        # container = cont,
+      DT::datatable(
+        patient_overview_per_ward() %>% select(all_of(colnames)),
+        container = htmltools::withTags(table(tableHeader(colnames), tableFooter(rep_along(colnames, "")))),
         rownames = FALSE,
         filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
           position = "top",
@@ -345,14 +349,16 @@ server <- function(input, output, session) {
           selected = matrix(c(1, 2), ncol = 2)
         ),
         colnames = colnames,
+        extensions=c('FixedHeader', 'Responsive'),
         options = list(
-          footerCallback = JS(sub("MYTOTAL", "100", jsCode)),
+          fixedHeader=TRUE,
+          footerCallback = JS(footerJS),
           columnDefs = list(
             list(
               # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
               render = JS(
                 "function(data, type, row, meta) {",
-                "if (type === 'display') {",
+                "if (type === 'displayXX') {",
                 "  if (data == 'PI') {",
                 "    return '&#10004;'",
                 "  } else if (data == 'P') {",
@@ -368,21 +374,33 @@ server <- function(input, output, session) {
               ),
               className = "dt-center", targets = seq(length(colnames) - 1)
             )
-          )
+          ),
+          rowCallback = JS(
+            paste0("function(row, data) {
+
+        for (i = 2; i < ",length(colnames),"; i++) {
+           value = Math.random()*10;
+           backgroundValue =",styleColorBar(range(1:10), '#80cc33', angle=-90)[1],";
+           $('td', row).eq(i).css('background',backgroundValue);
+           $('td', row).eq(i).css('background-repeat','no-repeat');
+           $('td', row).eq(i).css('background-position','center');
+           $('td', row).eq(i).css('background-size','98% 88%')
+         }
+         }"))
         )
-      ) %>% formatStyle(seq(3, length(colnames)),
-        backgroundColor = styleEqual( # styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
-          # set cell background color of PI to green, of P to red
-          c("PI", "P"),
-          c(
-            rgb(200, 230, 200, 255, 255, 255),
-            rgb(230, 200, 200, 255, 255, 255)
-          )
-        ),
-        # backgroundSize = '98% 95%',
-        # backgroundRepeat = 'no-repeat',
-        # backgroundPosition = 'center'
-      )
+      )# %>% formatStyle(seq(3, length(colnames)),
+      #  backgroundColor = styleEqual( # styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
+      #    # set cell background color of PI to green, of P to red
+      #    c("PI", "P"),
+      #    c(
+      #      rgb(200, 230, 200, 255, 255, 255),
+      #      rgb(230, 200, 200, 255, 255, 255)
+      #    )
+      #  ),
+      #  # backgroundSize = '98% 95%',
+      #  # backgroundRepeat = 'no-repeat',
+      #  # backgroundPosition = 'center'
+      #)
     )
   })
 

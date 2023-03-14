@@ -126,8 +126,12 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
       mutate(Name=person_id, Ward=ward)    
   }
   
+  patients <- patients %>% 
+    mutate_at(all_of(rec_map$short), recode, "P"="✘", "PI"="✔", "o"="(✘)", "I"="(✔)") %>% 
+    mutate_at(all_of(rec_map$short), as.factor)
+  
   stats <- patients %>%
-    select(all_of(cols)) %>% 
+    select(all_of(rec_map$short)) %>% 
     mutate(across(everything(), ~ if_else(. == "P", 1, if_else(. == "PI", -1, 0)))) %>%
     summarize(across(everything(), ~ sum(. == 1) / sum(. != 0))) %>% 
     mutate(across(everything(),  ~ if_else(is.na(.), 0, .)))
