@@ -15,6 +15,8 @@ source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
+bgCols <- c(population_intervention='#d2f7b7', population='#f7c6b7',none='#c4c4c4')
+
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
   tags$style(
@@ -83,17 +85,23 @@ ui <- fluidPage(
     column(
       12,
       wellPanel(
-        h1("Patients"),
-        DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6)
-      ),
-      wellPanel(
-        h1("Legend"),
-        uiOutput("legend_text"),
+        DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6),
+        h3("Legend"),
+        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["population_intervention"],";")), 
+        "Patient is treated according to the recommendation", 
+        br(),
+        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["population"],";")),
+        "Patient is not treated according to the recommendation", 
+        br(),
+        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["none"],";")),
+        "Recommendation not applicable to the patient", 
+        br(),
         align = "left"
       )
     )
   )
 )
+
 
 getPlotUIs <- function(vars, type) {
   #' @title getPlotUIs
@@ -273,10 +281,9 @@ server <- function(input, output, session) {
         return typeof i === 'string' ?  (i ===  match ? 1 : 0) : typeof i === 'number' ? i : 0;
     };
     for(i=",n_fixed_columns,"; i<api.columns().nodes().length;i++) {
-      var p = api.column(i).data().reduce(function(a, b) {return intVal(a, '(✔)') + intVal(b, '(✔)') });
-      var pi = api.column(i).data().reduce(function(a, b) {return intVal(a, '✔') + intVal(b, '✔') });
-      var ratio = p+pi > 0 ? (pi/(p+pi)*100) : 0;
-      $( api.column(i).footer() ).html(ratio.toFixed(0) + '%');
+      var p = api.column(i, { search: 'applied' }).data().reduce(function(a, b) {return intVal(a) + intVal(b) });
+      p /= api.column(i, { search: 'applied' }).data().length;
+      $( api.column(i).footer() ).html(p.toFixed(0) + '%');
     }
   
   }")
@@ -326,8 +333,10 @@ server <- function(input, output, session) {
         extensions=c('FixedHeader', 'Responsive'),
         escape=FALSE,
         options = list(
+          autoWidth = FALSE, 
+          bAutoWidth = FALSE,
           fixedHeader=TRUE,
-          #footerCallback = JS(footerJS),
+          footerCallback = JS(footerJS),
           columnDefs = list(
             list(
               className = "dt-center", targets = seq(length(colnames_comment) - 1)
@@ -336,9 +345,14 @@ server <- function(input, output, session) {
           rowCallback = JS(
             paste0("
             function(row, data) {
+              let colormap = {
+                 '1': '", bgCols["population_intervention"], "',
+                 '0': '", bgCols["population"], "',
+                '-1': '", bgCols["none"], "'
+              };
               for (i = ", n_fixed_columns, "; i < ", length(colnames_comment), "; i++) {
                 $('td', row).eq(i).css('border', 'solid black 1px');
-                $('td', row).eq(i).css('background', styleBatteryBar(randomBooleanArray(10)));
+                $('td', row).eq(i).css('background', styleBatteryBar(sampleWithReplacement([-1,0,1], 10), colormap));
                 $('td', row).eq(i).css('background-repeat','no-repeat');
                 $('td', row).eq(i).css('background-position','center');
                 $('td', row).eq(i).css('background-size','98% 88%')
@@ -348,23 +362,7 @@ server <- function(input, output, session) {
         reDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
         drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')
         )
-      )
-    )
-  })
-
-  output$legend_text <- renderUI({
-    div(
-      style = "display: inline;",
-      list(
-        div(style = "display: inline; width: 2%; background-color:rgb(200, 230, 200);", HTML("&#10004;")),
-        "- patient is treated according to the recommendation guideline", br(),
-        div(style = "display: inline; width: 2%; background-color:rgb(230, 200, 200);", HTML("&#x2718;")),
-        " - patient is not treated according to the recommendation guideline", br(),
-        div(style = "display: inline; ", HTML("(&#10004;)")),
-        " - patient is treated according to the recommendation guideline, but is not in the population", br(),
-        div(style = "display: inline; ", HTML("(&#x2718;)")),
-        "- patient is not treated according to the recommendation guideline, but is also not in the population"
-      )
+      ) %>% formatCurrency(columns=recommendation_names_short, currency="%", before=FALSE, digits=0)
     )
   })
 

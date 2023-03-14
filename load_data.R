@@ -127,8 +127,10 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   }
   
   patients <- patients %>% 
-    mutate_at(all_of(rec_map$short), recode, "P"="✘", "PI"="✔", "o"="(✘)", "I"="(✔)") %>% 
-    mutate_at(all_of(rec_map$short), as.factor)
+    mutate_at(all_of(rec_map$short), ~ round(runif(nrow(patients),0,100)))
+    #mutate_at(all_of(rec_map$short), recode, "P"="✘", "PI"="✔", "o"="(✘)", "I"="(✔)") %>% 
+    #mutate_at(all_of(rec_map$short), as.factor)
+    
   
   stats <- patients %>%
     select(all_of(rec_map$short)) %>% 

@@ -1,6 +1,23 @@
-function styleBatteryBar(data) {
-  if (!Array.isArray(data) || !data.every((x) => typeof x === "boolean")) {
-    console.warn("a boolean array is required");
+function testArrayKeys(arr1, arr2) {
+  for (let i = 0; i < arr1.length; i++) {
+    let key = arr1[i];
+    
+    if (!arr2.hasOwnProperty(key)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+function styleBatteryBar(data, colormap) {
+  if (!Array.isArray(data)) {
+    console.warn("An array is required");
+    return "";
+  }
+  
+  if(!testArrayKeys(data, colormap)) {
+    console.warn("Each value of data must be a key in colormap")
     return "";
   }
 
@@ -12,7 +29,7 @@ function styleBatteryBar(data) {
   let boxes = ["to right"];
 
   for (let i = 0; i < data.length; i++) {
-    const col = data[i] ? "#d2f7b7" : "#f7c6b7";
+    const col = colormap[data[i]];
     const start = size * i + margin;
     const end = size * (i + 1) - margin;
 
@@ -27,12 +44,13 @@ function styleBatteryBar(data) {
   return output;
 }
 
-function randomBooleanArray(length) {
-  let boolArray = [];
-
-  for (let i = 0; i < length; i++) {
-    boolArray.push(Math.random() < 0.5);
+function sampleWithReplacement(arr, n) {
+  let result = [];
+  
+  for (let i = 0; i < n; i++) {
+    let randomIndex = Math.floor(Math.random() * arr.length);
+    result.push(arr[randomIndex]);
   }
-
-  return boolArray;
+  
+  return result;
 }
