@@ -24,12 +24,12 @@ ui <- fluidPage(
     ),
   tags$script(src="batterybar.js"),
   #*************************************************************************
-  # Title Row
   fluidRow(
-    column(6, img(src = "img/celida-logo-white.png", height = 120), align = "right"),
-    column(6, img(src = "img/logo_num.jpg", height = 120), align = "left"),
-  ),
-  fluidRow(
+    column(2,
+         img(src = "img/celida-logo-white.png", height = 50, style="margin-top:20px;"),
+         br(),
+         img(src = "img/logo_num.jpg", height = 50),
+    ),
     column(2,
       selectInput(
         inputId = "ward",
@@ -40,7 +40,7 @@ ui <- fluidPage(
       ),
       align = "center"
     ),
-    column(6,
+    column(5,
       h2("Guideline Recommendation"),
       dropdownButton(
         label = "Guideline Recommendation",
@@ -60,7 +60,7 @@ ui <- fluidPage(
       ),
       align = "center"
     ),
-    column(4,
+    column(3,
       dateRangeInput(
         inputId = "observation_window",
         label = h2("Date range"),
@@ -70,7 +70,7 @@ ui <- fluidPage(
         max = Sys.Date(),
         width = "100%",
       ),
-      align = "left",
+      align = "center",
     )
   ),
 
@@ -207,6 +207,8 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 ############# Server ############
 server <- function(input, output, session) {
 
+  n_fixed_columns <- 3 # number of fixed columns before the recommendation columns (3: Name, Ward, Comment)
+  
   # REACTIVE VALUES
 
   # Overview of patients and the P/I state (for left side)
@@ -239,7 +241,7 @@ server <- function(input, output, session) {
     patient_overview_per_ward()[input$patienttable_cells_selected[1], ]$person_id
   })
   rv$selected_recommendation_url <- reactive({
-    if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > 1)) {
+    if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > n_fixed_columns-1)) {
       input$recommendation_url[input$patienttable_cells_selected[2] - 1]
     }
   })
@@ -264,24 +266,31 @@ server <- function(input, output, session) {
   # Footer (code to display summary statistics)
   ##############################################################################
 
-  footerJS <- "
+  footerJS <- paste0("
   function(row, data, start, end, display) {
     var api = this.api(), data;
     var intVal = function (i, match) {
         return typeof i === 'string' ?  (i ===  match ? 1 : 0) : typeof i === 'number' ? i : 0;
     };
-    for(i=2; i<api.columns().nodes().length;i++) {
+    for(i=",n_fixed_columns,"; i<api.columns().nodes().length;i++) {
       var p = api.column(i).data().reduce(function(a, b) {return intVal(a, '(✔)') + intVal(b, '(✔)') });
       var pi = api.column(i).data().reduce(function(a, b) {return intVal(a, '✔') + intVal(b, '✔') });
       var ratio = p+pi > 0 ? (pi/(p+pi)*100) : 0;
       $( api.column(i).footer() ).html(ratio.toFixed(0) + '%');
     }
   
-  }"
+  }")
   
   ##############################################################################
 
-  
+  shinyInput = function(FUN, len, id, ...) {
+    #validate(need(character(len)>0,message=paste("")))
+    inputs = character(len)
+    for (i in seq_len(len)) {
+      inputs[i] = as.character(FUN(paste0(id, i), label = NULL, ...))
+    }
+    inputs
+  }
 
 
   # Patient data table
@@ -290,15 +299,19 @@ server <- function(input, output, session) {
     updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
 
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
+    
     colnames <- c("Name", "Ward", recommendation_names_short)
+    colnames_comment <- c("Name", "Ward", "Comment", recommendation_names_short)
 
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(
-        patient_overview_per_ward() %>% select(all_of(colnames)),
-        container = htmltools::withTags(table(tableHeader(colnames), tableFooter(rep_along(colnames, "")))),
+        patient_overview_per_ward() %>% 
+          select(all_of(colnames)) %>% 
+          add_column(shinyInput(textAreaInput, nrow(patient_overview_per_ward()), "cbox_"), .after="Ward"),
+        container = htmltools::withTags(table(tableHeader(c(colnames_comment)), tableFooter(rep_along(colnames_comment, "")))),
         rownames = FALSE,
-        filter = list( # data have to be factors, not characters (in load_data.R sprintf has to be changed for ITS)
+        filter = list(
           position = "top",
           pageLength = 5,
           autoWidth = TRUE,
@@ -311,35 +324,19 @@ server <- function(input, output, session) {
         ),
         colnames = colnames,
         extensions=c('FixedHeader', 'Responsive'),
+        escape=FALSE,
         options = list(
           fixedHeader=TRUE,
-          footerCallback = JS(footerJS),
+          #footerCallback = JS(footerJS),
           columnDefs = list(
             list(
-              # javascript function to change PI/P/I/o to appropriate symbols (checkmarks, crosses)
-              render = JS(
-                "function(data, type, row, meta) {",
-                "if (type === 'displayXX') {",
-                "  if (data == 'PI') {",
-                "    return '&#10004;'",
-                "  } else if (data == 'P') {",
-                "    return '&#x2718;'",
-                "  } else if (data == 'I') {",
-                "    return '(&#10004;)'",
-                "  } else if (data == 'o') {",
-                "    return '(&#x2718;)';",
-                "  }",
-                "}",
-                "return data",
-                "}"
-              ),
-              className = "dt-center", targets = seq(length(colnames) - 1)
+              className = "dt-center", targets = seq(length(colnames_comment) - 1)
             )
           ),
           rowCallback = JS(
             paste0("
             function(row, data) {
-              for (i = 2; i < ",length(colnames),"; i++) {
+              for (i = ", n_fixed_columns, "; i < ", length(colnames_comment), "; i++) {
                 $('td', row).eq(i).css('border', 'solid black 1px');
                 $('td', row).eq(i).css('background', styleBatteryBar(randomBooleanArray(10)));
                 $('td', row).eq(i).css('background-repeat','no-repeat');
@@ -347,7 +344,9 @@ server <- function(input, output, session) {
                 $('td', row).eq(i).css('background-size','98% 88%')
               }
             }"
-        ))
+        )),
+        reDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
+        drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')
         )
       )
     )
@@ -370,11 +369,6 @@ server <- function(input, output, session) {
   })
 
   ##### Functions for right column #####
-  # observe population tab panel change - not required currently because all tab
-  # contents are set simultaneously
-  # observeEvent(input$POPULATIONPanel, {
-  #  #browser()
-  # })
 
   output$recommendation_text <- renderUI({
     if (!is.null(rv$selected_recommendation_url())) {
