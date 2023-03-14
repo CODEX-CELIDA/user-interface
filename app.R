@@ -28,20 +28,9 @@ ui <- fluidPage(
   #*************************************************************************
   fluidRow(
     column(2,
-         img(src = "img/celida-logo-white.png", height = 50, style="margin-top:20px;"),
-         br(),
-         img(src = "img/logo_num.jpg", height = 50),
+         img(src = "img/celida-logo-white.png", height = 100),
     ),
-    column(2,
-      selectInput(
-        inputId = "ward",
-        label = h2("Ward"),
-        choices = c("All"),
-        selected = "All",
-        width = "80%"
-      ),
-      align = "center"
-    ),
+    column(2,img(src = "img/logo_num.jpg", height = 100)),
     column(5,
       h2("Guideline Recommendation"),
       dropdownButton(
@@ -232,12 +221,8 @@ server <- function(input, output, session) {
   # Second reactive variable that just filters the patient_overview by the ward
   # This is used to not having to update the patient_overview() each time a
   # filter on ward is selected
-  patient_overview_per_ward <- reactive({
-    if (input$ward == "All") {
-      return(patient_overview()$patients)
-    } else {
-      return(patient_overview()$patients %>% filter(ward == input$ward))
-    }
+  patient_data <- reactive({
+      patient_overview()$patients
   })
 
   # Observe cell clicks and set person_id and recommendation_url accordingly
@@ -246,11 +231,12 @@ server <- function(input, output, session) {
   rv$table_initialized <- FALSE
   
   rv$selected_person_id <- reactive({
-    patient_overview_per_ward()[input$patienttable_cells_selected[1], ]$person_id
+    patient_data()[input$patienttable_cells_selected[1], ]$person_id
   })
+  
   rv$selected_recommendation_url <- reactive({
     if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > n_fixed_columns-1)) {
-      input$recommendation_url[input$patienttable_cells_selected[2] - 1]
+      input$recommendation_url[input$patienttable_cells_selected[2] - n_fixed_columns+1]
     }
   })
 
@@ -313,9 +299,9 @@ server <- function(input, output, session) {
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(
-        patient_overview_per_ward() %>% 
+        patient_data() %>% 
           select(all_of(colnames)) %>% 
-          add_column(shinyInput(textAreaInput, nrow(patient_overview_per_ward()), "cbox_"), .after="Ward"),
+          add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after="Ward"),
         container = htmltools::withTags(table(tableHeader(c(colnames_comment)), tableFooter(rep_along(colnames_comment, "")))),
         rownames = FALSE,
         filter = list(
@@ -327,7 +313,7 @@ server <- function(input, output, session) {
         selection = list(
           mode = "single",
           target = "cell",
-          selectable = as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames)))
+          selectable = as.matrix(expand.grid(seq(nrow(patient_data())), seq(n_fixed_columns, length(colnames))))
         ),
         colnames = colnames,
         extensions=c('FixedHeader', 'Responsive'),
@@ -339,7 +325,7 @@ server <- function(input, output, session) {
           footerCallback = JS(footerJS),
           columnDefs = list(
             list(
-              className = "dt-center", targets = seq(length(colnames_comment) - 1)
+              className = "dt-center", targets = seq(0, length(colnames_comment) - 1)
             )
           ),
           rowCallback = JS(
