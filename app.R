@@ -1,20 +1,3 @@
-#  This file is part of CEOsys Recommendation Checker.
-#
-#  Copyright (c) 2021 CEOsys project team <https://covid-evidenz.de>.
-#
-#  CEOsys Recommendation Checker is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  CEOsys Recommendation Checker is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with CEOsys Recommendation Checker.  If not, see <https://www.gnu.org/licenses/>.
-
 library(tidyverse)
 library(shiny)
 library(shinythemes)
@@ -26,15 +9,20 @@ library(glue)
 library(dotenv)
 library(shinycssloaders)
 
-#source("load_data.R")
-source("load_data_devel.R")
+source("load_data.R")
+#source("load_data_devel.R")
 source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
-  tags$style(type = "text/css", "h1 { margin-top:0;} "),
+  tags$style(
+    type = "text/css", 
+    "h1 { margin-top:0;} 
+    .modal-lg { min-width: 1200px; }"
+    ),
+  tags$script(src="batterybar.js"),
   #*************************************************************************
   # Title Row
   fluidRow(
@@ -42,7 +30,7 @@ ui <- fluidPage(
     column(6, img(src = "img/logo_num.jpg", height = 120), align = "left"),
   ),
   fluidRow(
-    column(1,
+    column(2,
       selectInput(
         inputId = "ward",
         label = h2("Ward"),
@@ -52,7 +40,7 @@ ui <- fluidPage(
       ),
       align = "center"
     ),
-    column(4,
+    column(6,
       h2("Guideline Recommendation"),
       dropdownButton(
         label = "Guideline Recommendation",
@@ -72,7 +60,7 @@ ui <- fluidPage(
       ),
       align = "center"
     ),
-    column(2,
+    column(4,
       dateRangeInput(
         inputId = "observation_window",
         label = h2("Date range"),
@@ -83,14 +71,6 @@ ui <- fluidPage(
         width = "100%",
       ),
       align = "left",
-    ),
-    column(
-      5,
-      wellPanel(
-        h1("Guideline Recommendation"),
-        htmlOutput("recommendation_text"),
-        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
-      )
     )
   ),
 
@@ -101,7 +81,7 @@ ui <- fluidPage(
 
     # Patient Table Column
     column(
-      7,
+      12,
       wellPanel(
         h1("Patients"),
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6)
@@ -110,37 +90,6 @@ ui <- fluidPage(
         h1("Legend"),
         uiOutput("legend_text"),
         align = "left"
-      )
-    ),
-
-    # Recommendation Column
-
-    column(
-      5,
-      # recommendation-Text Row
-      wellPanel(
-        h1("Comments"),
-        textAreaInput(
-          inputId = "comment",
-          label = "",
-          placeholder = "Make comments on patient's treatment",
-          width = "100%",
-          height = "96px",
-        ),
-        verbatimTextOutput("comment"),
-        align = "left"
-      ),
-
-      # recommendation-Population Row
-      wellPanel(
-        h1("Population"),
-        uiOutput("population_main", height = "500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
-      ),
-
-      # recommendation-Intervention Row
-      wellPanel(
-        h1("Intervention"),
-        uiOutput("intervention_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       )
     )
   )
@@ -257,6 +206,7 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 
 ############# Server ############
 server <- function(input, output, session) {
+
   # REACTIVE VALUES
 
   # Overview of patients and the P/I state (for left side)
@@ -282,6 +232,9 @@ server <- function(input, output, session) {
 
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
+  
+  rv$table_initialized <- FALSE
+  
   rv$selected_person_id <- reactive({
     patient_overview_per_ward()[input$patienttable_cells_selected[1], ]$person_id
   })
@@ -295,16 +248,25 @@ server <- function(input, output, session) {
   rv$selection_changed <- reactive({
     list(rv$selected_person_id(), rv$selected_recommendation_url())
   })
+  
+  # observer to show modal dialog (with population/intervention data)
+  # does fire every time a cell is clicked, because rv$selected_recommendation_url
+  # is set every time (it does not check whether a different cell/recommendation)
+  # has been selected compared to the previous selection
+  # rv$selection_changed shouldn't be used here because event is fired when
+  # the data table is initalized --> would display the modal dialog before clicking
+  observeEvent(rv$selected_recommendation_url(), {
+    showModal(dataModal())
+  })
 
 
   ##############################################################################
-  # Footer
+  # Footer (code to display summary statistics)
   ##############################################################################
 
   footerJS <- "
   function(row, data, start, end, display) {
     var api = this.api(), data;
-    // Remove the formatting to get integer data for summation
     var intVal = function (i, match) {
         return typeof i === 'string' ?  (i ===  match ? 1 : 0) : typeof i === 'number' ? i : 0;
     };
@@ -345,8 +307,7 @@ server <- function(input, output, session) {
         selection = list(
           mode = "single",
           target = "cell",
-          selectable = as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames))),
-          selected = matrix(c(1, 2), ncol = 2)
+          selectable = as.matrix(expand.grid(1:nrow(patient_overview_per_ward()), 2:length(colnames)))
         ),
         colnames = colnames,
         extensions=c('FixedHeader', 'Responsive'),
@@ -376,31 +337,19 @@ server <- function(input, output, session) {
             )
           ),
           rowCallback = JS(
-            paste0("function(row, data) {
-
-        for (i = 2; i < ",length(colnames),"; i++) {
-           value = Math.random()*10;
-           backgroundValue =",styleColorBar(range(1:10), '#80cc33', angle=-90)[1],";
-           $('td', row).eq(i).css('background',backgroundValue);
-           $('td', row).eq(i).css('background-repeat','no-repeat');
-           $('td', row).eq(i).css('background-position','center');
-           $('td', row).eq(i).css('background-size','98% 88%')
-         }
-         }"))
+            paste0("
+            function(row, data) {
+              for (i = 2; i < ",length(colnames),"; i++) {
+                $('td', row).eq(i).css('border', 'solid black 1px');
+                $('td', row).eq(i).css('background', styleBatteryBar(randomBooleanArray(10)));
+                $('td', row).eq(i).css('background-repeat','no-repeat');
+                $('td', row).eq(i).css('background-position','center');
+                $('td', row).eq(i).css('background-size','98% 88%')
+              }
+            }"
+        ))
         )
-      )# %>% formatStyle(seq(3, length(colnames)),
-      #  backgroundColor = styleEqual( # styleColorBar( # percentage values are missing, idea: add columns to the data table with the percentages and use those data (https://stackoverflow.com/questions/32018521/shiny-use-stylecolorbar-with-data-from-two-data-frames)
-      #    # set cell background color of PI to green, of P to red
-      #    c("PI", "P"),
-      #    c(
-      #      rgb(200, 230, 200, 255, 255, 255),
-      #      rgb(230, 200, 200, 255, 255, 255)
-      #    )
-      #  ),
-      #  # backgroundSize = '98% 95%',
-      #  # backgroundRepeat = 'no-repeat',
-      #  # backgroundPosition = 'center'
-      #)
+      )
     )
   })
 
@@ -468,12 +417,55 @@ server <- function(input, output, session) {
       min_dt <- as.POSIXct(format(input$observation_window[1]))
       max_dt <- as.POSIXct(format(input$observation_window[2]))
 
-
       setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "population", min_dt = min_dt, max_dt = max_dt)
       setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "intervention", min_dt = min_dt, max_dt = max_dt)
     },
     priority = 0 # make sure this is run after observeEvent(rv$selected_recommendation_url(), ...)
   )
+  
+  # Return the UI for a modal dialog with data selection input. If 'failed' is
+  # TRUE, then display a message that the previous value was invalid.
+  dataModal <- function(failed = FALSE) {
+    modalDialog(
+      wellPanel(
+        h1("Guideline Recommendation"),
+        htmlOutput("recommendation_text"),
+        tags$head(tags$style("#recommendation_text { font-size:18px; max-height: 20%; }")),
+      ),
+      # recommendation-Population Row
+      wellPanel(
+        h1("Population"),
+        uiOutput("population_main", height = "500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
+      ),
+      
+      # recommendation-Intervention Row
+      wellPanel(
+        h1("Intervention"),
+        uiOutput("intervention_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
+      ),
+      
+      # Comment
+      wellPanel(
+        h1("Comments"),
+        textAreaInput(
+          inputId = "comment",
+          label = "",
+          placeholder = "Make comments on patient's treatment",
+          width = "100%",
+          height = "96px",
+        ),
+        verbatimTextOutput("comment"),
+        align = "left"
+      ),
+      
+      footer = tagList(
+        modalButton("Dismiss"),
+      ),
+      size="l",
+      easyClose=TRUE
+    )
+  }
+
 }
 
 shinyApp(ui = ui, server = server)
