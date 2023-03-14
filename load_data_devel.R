@@ -6,7 +6,7 @@ load_recommendations <- function() {
   #'
   #' @return A tibble data frame containing the recommendations with added columns from the mapping data frame.
   #' @export
-  
+
   recommendations <- read_csv("data/recommendations.csv", show_col_types = FALSE)
   return(recommendations)
 }
@@ -38,25 +38,25 @@ summarize_category <- function(categories) {
 
 load_patient_list <- function(selected_recommendation_urls, start_datetime, end_datetime) {
   #' Load a list of patients based on selected recommendations and time period
-  #' 
+  #'
   #' This function loads a list of patients based on selected recommendations and time period.
   #'
   #' @param selected_recommendation_urls character vector of recommendation urls to be used
   #' @param start_datetime Datetime for the start of the time period
   #' @param end_datetime Datetime for the end of the time period
-  #' 
+  #'
   #' @return A list containing patients data in tibble format and run_ids in tibble format.
-  #' 
+  #'
   #' @examples
   #' result <- load_patient_list(c("recommendation1","recommendation2"), "2021-01-01", "2021-01-31")
   #' patients <- result$patients
   #' run_ids <- result$run_id
   #'
-  
+
   patients <- read_csv("data/patients.csv", show_col_types = FALSE)
   run_ids <- read_csv("data/run_ids.csv", show_col_types = FALSE)
   stats <- read_csv("data/stats.csv", show_col_types = FALSE)
-  
+
   return(list(patients = patients, run_id = run_ids, stats = stats))
 }
 
@@ -71,9 +71,9 @@ load_recommendation_variables <- function(recommendation_url) {
   #'
   #' @examples
   #' criteria <- load_recommendation_variables("www.example.com/recommendation/1234")
-  
+
   criteria <- read_csv("data/criteria.csv", show_col_types = FALSE)
-  
+
   return(criteria)
 }
 
@@ -93,12 +93,12 @@ load_data <- function(person_id, run_id, criterion_name) {
   #' patientdata <- load_data("12345", "run1", "criterion_a")
   #'
   #' @export
-  #' 
+  #'
   if (is.null(person_id) | length(person_id) == 0) {
     return(NULL)
   }
-  
+
   patientdata <- read_csv("data/patientdata.csv", show_col_types = FALSE)
-  
+
   return(patientdata)
 }
