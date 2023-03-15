@@ -15,7 +15,7 @@ source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
-bgCols <- c(population_intervention = "#d2f7b7", population = "#f7c6b7", none = "#c4c4c4")
+bgCols <- c(population_intervention = "#a7f26f", population = "#f5a48c", none = "#e1e1e1")
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
@@ -288,12 +288,11 @@ server <- function(input, output, session) {
   # Patient data table
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
-    updateSelectInput(session, "ward", choices = c("All", sort(unique(patient_overview()$patients$ward))))
 
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
 
-    colnames <- c("Name", "Ward", recommendation_names_short)
-    colnames_comment <- c("Name", "Ward", "Comment", recommendation_names_short)
+    colnames <- c("Patient", "Ward", recommendation_names_short)
+    colnames_comment <- c("Patient", "Ward", "Comment", recommendation_names_short)
 
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
@@ -312,7 +311,7 @@ server <- function(input, output, session) {
         selection = list(
           mode = "single",
           target = "cell",
-          selectable = as.matrix(expand.grid(seq(nrow(patient_data())), seq(n_fixed_columns, length(colnames))))
+          selectable = as.matrix(expand.grid(seq_len(nrow(patient_data())), seq(n_fixed_columns, length(colnames))))
         ),
         colnames = colnames,
         extensions = c("FixedHeader", "Responsive"),
@@ -347,7 +346,8 @@ server <- function(input, output, session) {
           reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
           drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } ")
         )
-      ) %>% formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
+      ) %>% 
+        formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
     )
   })
 

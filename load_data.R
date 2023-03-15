@@ -119,11 +119,16 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   if (nrow(patients) > 0) {
     patients <- patients %>%
       # make up a ward
-      mutate(ward = as.factor(sprintf("ITS %02d", (person_id %% 3) + 1))) %>%
+      mutate(Ward = as.factor(sprintf("ITS %02d", (person_id %% 3) + 1))) %>%
       inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
-      pivot_wider(id_cols = c("person_id", "ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
+      pivot_wider(id_cols = c("person_id", "Ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
       arrange(person_id) %>%
-      mutate(Name = person_id, Ward = ward)
+      mutate(Patient = person_id)
+  } else {
+    patients <- bind_cols(
+      tibble(Patient=character(), person_id=character(), Ward=character(), .rows=0),
+      tibble(!!!rec_map$short, .rows=0, .name_repair = ~ rec_map$short)
+    )
   }
 
   patients <- patients %>%
