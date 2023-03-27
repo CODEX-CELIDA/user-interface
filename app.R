@@ -15,7 +15,7 @@ source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
-bgCols <- c(population_intervention = "#a7f26f", population = "#f5a48c", none = "#e1e1e1")
+bgCols <- c(population_intervention = "#0be60b", population = "#ff3333", none = "#e1e1e1")
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
