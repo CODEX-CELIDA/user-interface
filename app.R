@@ -86,6 +86,9 @@ ui <- fluidPage(
         div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["none"], ";")),
         "Recommendation not applicable to the patient",
         br(),
+        HTML("&#x1F4AC"),
+        "Comment available",
+        br(),
         align = "left"
       )
     )
@@ -348,8 +351,13 @@ server <- function(input, output, session) {
         )
       ) %>% 
         formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
+      #formatPercentage( columns = recommendation_names_short, digits = 0, interval = 2)
+        %>% 
+        formatStyle(columns = recommendation_names_short, target = "cell", background = img(src = "img/celida-logo-white.png", height = 100, width = 100))
     )
+ #   df<-patient_data()
   })
+
 
   ##### Functions for right column #####
 
