@@ -118,32 +118,29 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
 
   if (nrow(patients) > 0) {
     patients <- patients %>%
-      # make up a ward
+      # make up a ward TODO: should be real ward
       mutate(Ward = as.factor(sprintf("ITS %02d", (person_id %% 3) + 1))) %>%
       inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
       pivot_wider(id_cols = c("person_id", "Ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
       arrange(person_id) %>%
       mutate(Patient = person_id)
   } else {
+    # no patients received - return a valid tibble but without rows
     patients <- bind_cols(
       tibble(Patient=character(), person_id=character(), Ward=character(), .rows=0),
       tibble(!!!rec_map$short, .rows=0, .name_repair = ~ rec_map$short)
     )
   }
 
+  # make up percentage data
   patients <- patients %>%
     mutate_at(all_of(rec_map$short), ~ round(runif(nrow(patients), 0, 100)))
-  # mutate_at(all_of(rec_map$short), recode, "P"="✘", "PI"="✔", "o"="(✘)", "I"="(✔)") %>%
-  # mutate_at(all_of(rec_map$short), as.factor)
 
+  # make up comment data
+  comments <- patients %>%
+    mutate_at(all_of(rec_map$short), ~ runif(nrow(patients)) > 0.5)
 
-  stats <- patients %>%
-    select(all_of(rec_map$short)) %>%
-    mutate(across(everything(), ~ if_else(. == "P", 1, if_else(. == "PI", -1, 0)))) %>%
-    summarize(across(everything(), ~ sum(. == 1) / sum(. != 0))) %>%
-    mutate(across(everything(), ~ if_else(is.na(.), 0, .)))
-
-  return(list(patients = patients, run_id = run_ids, stats = stats))
+  return(list(patients = patients, run_id = run_ids, comments = comments))
 }
 
 load_recommendation_variables <- function(recommendation_url) {

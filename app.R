@@ -21,8 +21,11 @@ ui <- fluidPage(
   theme = shinytheme("cerulean"),
   tags$style(
     type = "text/css",
-    "h1 { margin-top:0;}
-    .modal-lg { min-width: 1200px; }"
+    '
+    h1 { margin-top:0;}
+    .modal-lg { min-width: 1200px; }
+    .comment-available::after { content: "\\1F4AC"; }
+    '
   ),
   tags$script(src = "batterybar.js"),
   #*************************************************************************
@@ -227,6 +230,11 @@ server <- function(input, output, session) {
   patient_data <- reactive({
     patient_overview()$patients
   })
+  
+  # Comment available indicator
+  patient_comments <- reactive({
+    patient_overview()$comments
+  })
 
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
@@ -341,6 +349,8 @@ server <- function(input, output, session) {
                 $('td', row).eq(i).css('background-repeat','no-repeat');
                 $('td', row).eq(i).css('background-position','center');
                 $('td', row).eq(i).css('background-size','98% 88%')
+                
+                $('td', row).eq(i).addClass('comment-available');
               }
             }")
           ),
@@ -349,14 +359,6 @@ server <- function(input, output, session) {
         )
       ) %>%
         formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
-        # formatPercentage( columns = recommendation_names_short, digits = 0, interval = 2)
-        %>%
-        formatStyle(
-          columns = recommendation_names_short, target = "cell",
-          background = postscript("images/HTML_speech_bubble.ps", height = 100, width = 100),
-          backgroundRepeat = "no-repeat",
-          backgroundPosition = "center"
-        )
     )
   })
 
@@ -454,4 +456,3 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui = ui, server = server)
-u
