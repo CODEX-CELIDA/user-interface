@@ -8,7 +8,6 @@ library(plotly)
 library(glue)
 library(dotenv)
 library(shinycssloaders)
-library(grDevices)
 
 source("load_data.R")
 # source("load_data_devel.R")
@@ -209,9 +208,9 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 ############# Server ############
 server <- function(input, output, session) {
   n_fixed_columns <- 3 # number of fixed columns before the recommendation columns (3: Name, Ward, Comment)
-  
+
   # REACTIVE VALUES
-  
+
   # Overview of patients and the P/I state (for left side)
   # This tibble contains one patient per row, "name" and "ward" as columns and
   # for each selected guideline recommendations a column with one of "PI", "P",
@@ -220,7 +219,7 @@ server <- function(input, output, session) {
   patient_overview <- reactive({
     load_patient_list(isolate(input$recommendation_url), start_datetime = format(input$observation_window[1]), end_datetime = format(input$observation_window[2]))
   })
-  
+
   # Patient overview filtered by ward
   # Second reactive variable that just filters the patient_overview by the ward
   # This is used to not having to update the patient_overview() each time a
@@ -228,27 +227,27 @@ server <- function(input, output, session) {
   patient_data <- reactive({
     patient_overview()$patients
   })
-  
+
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
-  
+
   rv$table_initialized <- FALSE
-  
+
   rv$selected_person_id <- reactive({
     patient_data()[input$patienttable_cells_selected[1], ]$person_id
   })
-  
+
   rv$selected_recommendation_url <- reactive({
     if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > n_fixed_columns - 1)) {
       input$recommendation_url[input$patienttable_cells_selected[2] - n_fixed_columns + 1]
     }
   })
-  
+
   # used to observe if either person_id or recommendation_url has changed
   rv$selection_changed <- reactive({
     list(rv$selected_person_id(), rv$selected_recommendation_url())
   })
-  
+
   # observer to show modal dialog (with population/intervention data)
   # does fire every time a cell is clicked, because rv$selected_recommendation_url
   # is set every time (it does not check whether a different cell/recommendation)
@@ -258,12 +257,12 @@ server <- function(input, output, session) {
   observeEvent(rv$selected_recommendation_url(), {
     showModal(dataModal())
   })
-  
-  
+
+
   ##############################################################################
   # Footer (code to display summary statistics)
   ##############################################################################
-  
+
   footerJS <- paste0("
   function(row, data, start, end, display) {
     var api = this.api(), data;
@@ -276,9 +275,9 @@ server <- function(input, output, session) {
       $( api.column(i).footer() ).html(p.toFixed(0) + '%');
     }
   }")
-  
+
   ##############################################################################
-  
+
   shinyInput <- function(FUN, len, id, ...) {
     inputs <- character(len)
     for (i in seq_len(len)) {
@@ -286,17 +285,16 @@ server <- function(input, output, session) {
     }
     inputs
   }
-  
-  
+
+
   # Patient data table
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
-    
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
-    
+
     colnames <- c("Patient", "Ward", recommendation_names_short)
     colnames_comment <- c("Patient", "Ward", "Comment", recommendation_names_short)
-    
+
     output$patienttable <- DT::renderDataTable(
       server = FALSE,
       DT::datatable(
@@ -349,68 +347,69 @@ server <- function(input, output, session) {
           reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
           drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } ")
         )
-      ) %>% 
+      ) %>%
         formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
-      #formatPercentage( columns = recommendation_names_short, digits = 0, interval = 2)
-      %>% 
-        formatStyle(columns = recommendation_names_short, target = "cell",
-                    background = postscript("images/HTML_speech_bubble.ps", height = 100, width = 100),
-                    backgroundRepeat = 'no-repeat',
-                    backgroundPosition = 'center')
+        # formatPercentage( columns = recommendation_names_short, digits = 0, interval = 2)
+        %>%
+        formatStyle(
+          columns = recommendation_names_short, target = "cell",
+          background = postscript("images/HTML_speech_bubble.ps", height = 100, width = 100),
+          backgroundRepeat = "no-repeat",
+          backgroundPosition = "center"
+        )
     )
-    #   df<-patient_data()
   })
-  
-  
+
+
   ##### Functions for right column #####
-  
+
   output$recommendation_text <- renderUI({
     if (!is.null(rv$selected_recommendation_url())) {
       HTML(recommendations %>% filter(recommendation_url == rv$selected_recommendation_url()) %>% pull(recommendation_description))
     }
   })
-  
+
   observeEvent(rv$selected_recommendation_url(),
-               {
-                 rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
-                 rv$vars_population <- rv$recommendation_criteria %>%
-                   filter(type == "population") %>%
-                   pull(variable_name) %>%
-                   unique() %>%
-                   as.list()
-                 
-                 rv$vars_intervention <- rv$recommendation_criteria %>%
-                   filter(type == "intervention") %>%
-                   pull(variable_name) %>%
-                   unique() %>%
-                   as.list()
-                 
-                 #### Create divs######
-                 output$population_main <- getPlotUIs(rv$vars_population, "population")
-                 output$intervention_main <- getPlotUIs(rv$vars_intervention, "intervention")
-               },
-               priority = 1 # make sure this is run before observeEvent(rv$selection_changed())
+    {
+      rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
+      rv$vars_population <- rv$recommendation_criteria %>%
+        filter(type == "population") %>%
+        pull(variable_name) %>%
+        unique() %>%
+        as.list()
+
+      rv$vars_intervention <- rv$recommendation_criteria %>%
+        filter(type == "intervention") %>%
+        pull(variable_name) %>%
+        unique() %>%
+        as.list()
+
+      #### Create divs######
+      output$population_main <- getPlotUIs(rv$vars_population, "population")
+      output$intervention_main <- getPlotUIs(rv$vars_intervention, "intervention")
+    },
+    priority = 1 # make sure this is run before observeEvent(rv$selection_changed())
   )
-  
+
   observeEvent(rv$selection_changed(),
-               {
-                 if (is.null(rv$selected_recommendation_url())) {
-                   return()
-                 }
-                 
-                 run_id <- patient_overview()$run_id %>%
-                   filter(url == rv$selected_recommendation_url()) %>%
-                   pull(run_id)
-                 
-                 min_dt <- as.POSIXct(format(input$observation_window[1]))
-                 max_dt <- as.POSIXct(format(input$observation_window[2]))
-                 
-                 setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "population", min_dt = min_dt, max_dt = max_dt)
-                 setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "intervention", min_dt = min_dt, max_dt = max_dt)
-               },
-               priority = 0 # make sure this is run after observeEvent(rv$selected_recommendation_url(), ...)
+    {
+      if (is.null(rv$selected_recommendation_url())) {
+        return()
+      }
+
+      run_id <- patient_overview()$run_id %>%
+        filter(url == rv$selected_recommendation_url()) %>%
+        pull(run_id)
+
+      min_dt <- as.POSIXct(format(input$observation_window[1]))
+      max_dt <- as.POSIXct(format(input$observation_window[2]))
+
+      setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "population", min_dt = min_dt, max_dt = max_dt)
+      setPlotUIOutputs(output, person_id = rv$selected_person_id(), run_id = run_id, vars = rv$recommendation_criteria, type = "intervention", min_dt = min_dt, max_dt = max_dt)
+    },
+    priority = 0 # make sure this is run after observeEvent(rv$selected_recommendation_url(), ...)
   )
-  
+
   # Return the UI for a modal dialog with data selection input. If 'failed' is
   # TRUE, then display a message that the previous value was invalid.
   dataModal <- function(failed = FALSE) {
@@ -425,13 +424,13 @@ server <- function(input, output, session) {
         h1("Population"),
         uiOutput("population_main", height = "500px") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       ),
-      
+
       # recommendation-Intervention Row
       wellPanel(
         h1("Intervention"),
         uiOutput("intervention_main") %>% shinycssloaders::withSpinner(type = 6, proxy.height = "300px", hide.ui = FALSE)
       ),
-      
+
       # Comment
       wellPanel(
         h1("Comments"),
@@ -455,3 +454,4 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui = ui, server = server)
+u
