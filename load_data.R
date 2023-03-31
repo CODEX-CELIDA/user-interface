@@ -20,7 +20,6 @@ library(stringr)
 library(readr)
 library(dplyr)
 library(lubridate)
-# library(urltools)
 
 
 base_url <- "http://localhost:8001"

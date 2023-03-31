@@ -24,7 +24,9 @@ ui <- fluidPage(
     '
     h1 { margin-top:0;}
     .modal-lg { min-width: 1200px; }
-    .comment-available::after { content: "\\1F4AC"; }
+    .comment-available { width:20px; height:20px; position:absolute; bottom:0; right: 0;}
+    .dataTable td { position:relative; }
+    .legend-icon { display:inline-block; width:20px; height:10px; }
     '
   ),
   tags$script(src = "batterybar.js"),
@@ -80,16 +82,16 @@ ui <- fluidPage(
       wellPanel(
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6),
         h3("Legend"),
-        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["population_intervention"], ";")),
+        div(class="legend-icon", style = paste0("background-color:", bgCols["population_intervention"], ";")),
         "Patient is treated according to the recommendation",
         br(),
-        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["population"], ";")),
+        div(class="legend-icon", style = paste0("background-color:", bgCols["population"], ";")),
         "Patient is not treated according to the recommendation",
         br(),
-        div(style = paste0("display:inline-block; width:20px; height:10px; background-color:", bgCols["none"], ";")),
+        div(class="legend-icon", style = paste0("background-color:", bgCols["none"], ";")),
         "Recommendation not applicable to the patient",
         br(),
-        HTML("&#x1F4AC"),
+        div(class="legend-icon", HTML("&#x1F4AC")),
         "Comment available",
         br(),
         align = "left"
@@ -349,8 +351,11 @@ server <- function(input, output, session) {
                 $('td', row).eq(i).css('background-repeat','no-repeat');
                 $('td', row).eq(i).css('background-position','center');
                 $('td', row).eq(i).css('background-size','98% 88%')
+                if(Math.random() > 0.5) {
+                  var div = $('<div>').html('&#x1F4AC;').addClass('comment-available');
+                  $('td', row).eq(i).append(div);
+                }
                 
-                $('td', row).eq(i).addClass('comment-available');
               }
             }")
           ),
@@ -363,7 +368,7 @@ server <- function(input, output, session) {
   })
 
 
-  ##### Functions for right column #####
+  ##### Functions for popup window #####
 
   output$recommendation_text <- renderUI({
     if (!is.null(rv$selected_recommendation_url())) {
