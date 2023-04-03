@@ -20,7 +20,6 @@ library(stringr)
 library(readr)
 library(dplyr)
 library(lubridate)
-# library(urltools)
 
 
 base_url <- "http://localhost:8001"
@@ -47,7 +46,7 @@ load_recommendations <- function() {
   #'
   #' @return A tibble data frame containing the recommendations with added columns from the mapping data frame.
   #' @export
-  
+
   req <- GET(paste0(base_url, "/recommendation/list"))
   recommendations <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>%
     as_tibble() %>%
@@ -82,27 +81,27 @@ summarize_category <- function(categories) {
 
 load_patient_list <- function(selected_recommendation_urls, start_datetime, end_datetime) {
   #' Load a list of patients based on selected recommendations and time period
-  #' 
+  #'
   #' This function loads a list of patients based on selected recommendations and time period.
   #'
   #' @param selected_recommendation_urls character vector of recommendation urls to be used
   #' @param start_datetime Datetime for the start of the time period
   #' @param end_datetime Datetime for the end of the time period
-  #' 
+  #'
   #' @return A list containing patients data in tibble format and run_ids in tibble format.
-  #' 
+  #'
   #' @examples
   #' result <- load_patient_list(c("recommendation1","recommendation2"), "2021-01-01", "2021-01-31")
   #' patients <- result$patients
   #' run_ids <- result$run_id
   #'
-  
+
   patients <- tibble()
 
   if (is.null(selected_recommendation_urls)) {
     return(patients)
   }
-  
+
   for (recommendation_url in selected_recommendation_urls) {
     req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
 
@@ -113,20 +112,34 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
       mutate(run_id = run_id, url = recommendation_url)
     patients <- bind_rows(patients, pat_data)
   }
-  
+
   run_ids <- patients %>% distinct(run_id, url)
-  
-  if(nrow(patients) > 0) {
+
+  if (nrow(patients) > 0) {
     patients <- patients %>%
-      # make up a ward
-      mutate(ward = sprintf("ITS %02d", (person_id %% 3) + 1)) %>%
+      # make up a ward TODO: should be real ward
+      mutate(Ward = as.factor(sprintf("ITS %02d", (person_id %% 3) + 1))) %>%
       inner_join(rec_map %>% rename(url = recommendation_url), by = "url") %>%
-      pivot_wider(id_cols = c("person_id", "ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
-      arrange(person_id) %>% 
-      mutate(Name=person_id, Ward=ward)    
+      pivot_wider(id_cols = c("person_id", "Ward"), names_from = "short", values_from = "cohort_category", values_fn = summarize_category) %>%
+      arrange(person_id) %>%
+      mutate(Patient = person_id)
+  } else {
+    # no patients received - return a valid tibble but without rows
+    patients <- bind_cols(
+      tibble(Patient=character(), person_id=character(), Ward=character(), .rows=0),
+      tibble(!!!rec_map$short, .rows=0, .name_repair = ~ rec_map$short)
+    )
   }
 
-  return(list(patients = patients, run_id = run_ids))
+  # make up percentage data
+  patients <- patients %>%
+    mutate_at(all_of(rec_map$short), ~ round(runif(nrow(patients), 0, 100)))
+
+  # make up comment data
+  comments <- patients %>%
+    mutate_at(all_of(rec_map$short), ~ runif(nrow(patients)) > 0.5)
+
+  return(list(patients = patients, run_id = run_ids, comments = comments))
 }
 
 load_recommendation_variables <- function(recommendation_url) {
@@ -140,7 +153,7 @@ load_recommendation_variables <- function(recommendation_url) {
   #'
   #' @examples
   #' criteria <- load_recommendation_variables("www.example.com/recommendation/1234")
-  
+
   req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
   data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
   criteria <- data$criterion %>%
@@ -166,7 +179,7 @@ load_data <- function(person_id, run_id, criterion_name) {
   #' patientdata <- load_data("12345", "run1", "criterion_a")
   #'
   #' @export
-  #' 
+  #'
   if (is.null(person_id) | length(person_id) == 0) {
     return(NULL)
   }
@@ -178,7 +191,7 @@ load_data <- function(person_id, run_id, criterion_name) {
   }
 
   patientdata <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>% as_tibble()
-  
+
   patientdata <- patientdata %>%
     rename(datetime = start_datetime) %>%
     arrange(datetime)
@@ -193,15 +206,15 @@ load_data <- function(person_id, run_id, criterion_name) {
     patientdata <- patientdata %>%
       mutate(value = TRUE)
   }
-  
+
   if (!("end_datetime" %in% names(patientdata))) {
     patientdata <- patientdata %>%
       mutate(end_datetime = datetime)
   }
-  
+
   if (nrow(patientdata) > 0) {
     patientdata <- patientdata %>%
-      mutate(end_datetime = coalesce(end_datetime, datetime)) %>% 
+      mutate(end_datetime = coalesce(end_datetime, datetime)) %>%
       mutate(datetime = parse_datetime(datetime)) %>%
       mutate(end_datetime = parse_datetime(end_datetime))
   }
