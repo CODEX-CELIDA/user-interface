@@ -131,16 +131,60 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
     )
   }
 
-  # make up percentage data
-  patients <- patients %>%
-    mutate_at(all_of(rec_map$short), ~ round(runif(nrow(patients), 0, 100)))
+
 
   # make up comment data
-  comments <- patients %>%
+  t_comments <- patients %>%
     mutate_at(all_of(rec_map$short), ~ runif(nrow(patients)) > 0.5)
-
-  return(list(patients = patients, run_id = run_ids, comments = comments))
+  
+  # make up day data
+  generate_random_strings <- function(x, n) {
+    random_strings <- sapply(1:x, function(i) {
+      random_digits <- sample(0:2, n, replace = TRUE)
+      random_string <- paste0(random_digits, collapse = "")
+      return(random_string)
+    })
+    return(random_strings)
+  }
+  
+  n_days <- 10
+  t_days <- patients %>%
+    mutate_at(vars(all_of(rec_map$short)), ~ generate_random_strings(length(.), n_days))
+  
+  # determine percentage data
+  percentage <- function(input_vector) {
+    return(sapply(input_vector, function(input_string) {
+    split <- strsplit(input_string, "")[[1]]
+    
+    # Count the occurrences of 1 and 2
+    count_1 <- sum(split == "1")
+    count_2 <- sum(split == "2")
+    
+    # Divide the number of 2s by the sum of the number of 1s and 2s
+    result <- count_2 / (count_1 + count_2)
+    
+    return(result)
+    }))
+  }
+  
+  t_percentage <- t_days %>% mutate(across(all_of(rec_map$short), percentage))
+  
+  # combine days, percentage and comment data into a single tibble
+  create_named_matrix <- function(column_name) {
+    matrix_data <- cbind(data = t_percentage[[column_name]], days = t_days[[column_name]], comments = t_comments[[column_name]])
+    return(matrix_data)
+  }
+  
+  matrix_list <- map(rec_map$short, ~create_named_matrix(.))
+  matrix_list <- set_names(matrix_list, rec_map$short)
+  matrix_list <- as_tibble(matrix_list)
+  
+  result <- bind_cols(patients %>% select(-all_of(rec_map$short)), matrix_list)
+  
+  return(list(patients = result, run_id = run_ids))
 }
+
+#t_days<-load_patient_list(rec_map$recommendation_url, start_datetime="2023-01-01", end_datetime="2023-04-03")
 
 load_recommendation_variables <- function(recommendation_url) {
   #' Load Recommendation Variables

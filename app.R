@@ -15,21 +15,13 @@ source("dropdownbutton.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
-bgCols <- c(population_intervention = "#0be60b", population = "#ff3333", none = "#e1e1e1")
 
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
-  tags$style(
-    type = "text/css",
-    '
-    h1 { margin-top:0;}
-    .modal-lg { min-width: 1200px; }
-    .comment-available { width:20px; height:20px; position:absolute; bottom:0; right: 0;}
-    .dataTable td { position:relative; }
-    .legend-icon { display:inline-block; width:20px; height:10px; }
-    .dataTable thead td { z-index:1; }
-    '
+  tags$head(
+    tags$link(rel = "stylesheet", type = "text/css", href = "celida.css")
   ),
+  tags$script(src = "process-cell-data.js"),
   tags$script(src = "batterybar.js"),
   #*************************************************************************
   fluidRow(
@@ -83,13 +75,13 @@ ui <- fluidPage(
       wellPanel(
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6),
         h3("Legend"),
-        div(class="legend-icon", style = paste0("background-color:", bgCols["population_intervention"], ";")),
+        div(class="legend-icon", style = "background-color: var(--population-intervention-color);"),
         "Patient is treated according to the recommendation",
         br(),
-        div(class="legend-icon", style = paste0("background-color:", bgCols["population"], ";")),
+        div(class="legend-icon", style = "background-color: var(--population-color);"),
         "Patient is not treated according to the recommendation",
         br(),
-        div(class="legend-icon", style = paste0("background-color:", bgCols["none"], ";")),
+        div(class="legend-icon", style = "background-color: var(--none-color);"),
         "Recommendation not applicable to the patient",
         br(),
         div(class="legend-icon", HTML("&#x1F4AC")),
@@ -234,11 +226,6 @@ server <- function(input, output, session) {
     patient_overview()$patients
   })
   
-  # Comment available indicator
-  patient_comments <- reactive({
-    patient_overview()$comments
-  })
-
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
 
@@ -277,12 +264,16 @@ server <- function(input, output, session) {
   footerJS <- paste0("
   function(row, data, start, end, display) {
     var api = this.api(), data;
-    var intVal = function (i, match) {
-        return typeof i === 'string' ?  (i ===  match ? 1 : 0) : typeof i === 'number' ? i : 0;
+    var floatVal = function (i, match) {
+        if (Array.isArray(i)) {
+          return floatVal(i[0]);
+        }
+        return parseFloat(i);
     };
     for(i=", n_fixed_columns, "; i<api.columns().nodes().length;i++) {
-      var p = api.column(i, { search: 'applied' }).data().reduce(function(a, b) {return intVal(a) + intVal(b) });
-      p /= api.column(i, { search: 'applied' }).data().length;
+      var p = api.column(i, { search: 'applied' }).data().reduce(function(a, b) { return floatVal(a) + floatVal(b) }, 0);
+      p = p * 100 / api.column(i, { search: 'applied' }).data().length;
+      
       $( api.column(i).footer() ).html(p.toFixed(0) + '%');
     }
   }")
@@ -307,7 +298,6 @@ server <- function(input, output, session) {
     colnames_comment <- c("Patient", "Ward", "Comment", recommendation_names_short)
 
     output$patienttable <- DT::renderDataTable(
-      server = FALSE,
       DT::datatable(
         patient_data() %>%
           select(all_of(colnames)) %>%
@@ -329,42 +319,26 @@ server <- function(input, output, session) {
         extensions = c("FixedHeader", "Responsive"),
         escape = FALSE,
         options = list(
+          dom = 'tipr',
           autoWidth = FALSE,
           bAutoWidth = FALSE,
           fixedHeader = TRUE,
           footerCallback = JS(footerJS),
           columnDefs = list(
-            list(
-              className = "dt-center", targets = seq(0, length(colnames_comment) - 1)
-            )
+            list(className = "dt-center", targets = seq(0, length(colnames_comment) - 1))
+            #, list(targets = seq(3, length(colnames_comment) - 1), type="num", render=list(filter=0))
           ),
-          rowCallback = JS(
-            paste0("
-            function(row, data) {
-              let colormap = {
-                 '1': '", bgCols["population_intervention"], "',
-                 '0': '", bgCols["population"], "',
-                '-1': '", bgCols["none"], "'
-              };
-              for (i = ", n_fixed_columns, "; i < ", length(colnames_comment), "; i++) {
-                $('td', row).eq(i).css('border', 'solid black 1px');
-                $('td', row).eq(i).css('background', styleBatteryBar(sampleWithReplacement([-1,0,1], 10), colormap));
-                $('td', row).eq(i).css('background-repeat','no-repeat');
-                $('td', row).eq(i).css('background-position','center');
-                $('td', row).eq(i).css('background-size','98% 88%')
-                if(Math.random() > 0.5) {
-                  var div = $('<div>').html('&#x1F4AC;').addClass('comment-available');
-                  $('td', row).eq(i).append(div);
-                }
-                
-              }
-            }")
-          ),
+          rowCallback = JS("function(row, data, dataIndex) { processCellData(row, data, dataIndex); }"),
           reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
           drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } ")
         )
-      ) %>%
-        formatCurrency(columns = recommendation_names_short, currency = "%", before = FALSE, digits = 0)
+      ),
+      
+      # disable server-side processing of data table input (see https://rstudio.github.io/DT/server.html) 
+      # - required because we are using tibbles with named lists as cell items which (as of 23-04-03) cannot
+      #   be processed by the server (with an error like "DataTables warning: table id=DataTables_Table_0 - 
+      #   Error in `[<-.data.frame`(`*tmp*`, , j, value = list(structure(list(A = c("A", : replacement element 1 is a matrix/data frame of 3 rows, need 2)"
+      server = FALSE, 
     )
   })
 
@@ -392,7 +366,7 @@ server <- function(input, output, session) {
         unique() %>%
         as.list()
 
-      #### Create divs######
+      #### Create divs ######
       output$population_main <- getPlotUIs(rv$vars_population, "population")
       output$intervention_main <- getPlotUIs(rv$vars_intervention, "intervention")
     },
