@@ -27,6 +27,7 @@ ui <- fluidPage(
     .comment-available { width:20px; height:20px; position:absolute; bottom:0; right: 0;}
     .dataTable td { position:relative; }
     .legend-icon { display:inline-block; width:20px; height:10px; }
+    .dataTable thead td { z-index:1; }
     '
   ),
   tags$script(src = "batterybar.js"),
