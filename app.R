@@ -205,6 +205,7 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 
 ############# Server ############
 server <- function(input, output, session) {
+  # TODO: make dynamic
   n_fixed_columns <- 3 # number of fixed columns before the recommendation columns (3: Name, Ward, Comment)
 
   # REACTIVE VALUES
@@ -234,9 +235,11 @@ server <- function(input, output, session) {
   rv$selected_person_id <- reactive({
     patient_data()[input$patienttable_cells_selected[1], ]$person_id
   })
+  
 
   rv$selected_recommendation_url <- reactive({
     if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > n_fixed_columns - 1)) {
+      print(input$patienttable_cells_selected)
       input$recommendation_url[input$patienttable_cells_selected[2] - n_fixed_columns + 1]
     }
   })
@@ -270,59 +273,75 @@ server <- function(input, output, session) {
 
   # Patient data table
   options(DT.options = list(pageLength = 20))
-  observeEvent(input$recommendation_url, {
-    recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
-    colnames_expanded <- expand_colnames(recommendation_names_short)
-    
-    #colnames <- c("Patient", "Ward", colnames_expanded)
-    colnames_comment <- c("Patient", "Ward", "Comment", colnames_expanded)
-    columnDefs <- generate_columnDefs(colnames_comment)
-    
-    data <- patient_data() %>%
-      select(all_of( c("Patient", "Ward", colnames_expanded))) %>%
-      add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after = "Ward")
   
-    output$patienttable <- DT::renderDataTable(
-      DT::datatable(
-        data,
-        container = htmltools::withTags(table(tableHeader(c(colnames_comment)), tableFooter(rep_along(colnames_comment, "")))),
-        rownames = FALSE,
-        filter = list(
-          position = "top",
-          pageLength = 5,
-          autoWidth = TRUE,
-          clear = TRUE
-        ),
-        selection = list(
-          mode = "single",
-          target = "cell",
-          selectable = as.matrix(expand.grid(seq_len(nrow(patient_data())), seq(n_fixed_columns, length(colnames))))
-        ),
-        extensions = c("FixedHeader", "Responsive"),
-        escape = FALSE,
-        options = list(
-          dom = 'tipr',
-          autoWidth = FALSE,
-          bAutoWidth = FALSE,
-          fixedHeader = TRUE,
-          footerCallback = JS("function(row, data, start, end, display) { footerSummary(this.api(), row, data, start, end, display); }"),
-          columnDefs = c(
-            columnDefs,
-            list(list(className = "dt-center", targets = seq(0, length(colnames_comment) - 1))) # center the contents of all cells
-          ),
-          rowCallback = JS("function(row, data, displayNum) { processCellData(this.api(), row, data, displayNum); }"),
-          reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
-          drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } ")
-        )
-      ),
-      
-      # disable server-side processing of data table input (see https://rstudio.github.io/DT/server.html) 
-      # - required because we are using tibbles with named lists as cell items which (as of 23-04-03) cannot
-      #   be processed by the server (with an error like "DataTables warning: table id=DataTables_Table_0 - 
-      #   Error in `[<-.data.frame`(`*tmp*`, , j, value = list(structure(list(A = c("A", : replacement element 1 is a matrix/data frame of 3 rows, need 2)"
-      server = FALSE, 
-    )
+  rv$colnames_expanded <- reactive({
+    recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
+    expand_colnames(recommendation_names_short)
   })
+  
+  rv$colnames_comment <- reactive({
+    c("Patient", "Ward", "Comment", rv$colnames_expanded())
+  })
+  
+  rv$columnDefs <- reactive({
+    generate_columnDefs(rv$colnames_comment())
+  })
+  
+  rv$data <- reactive({
+    data <- patient_data() %>%
+      select(all_of( c("Patient", "Ward", rv$colnames_expanded()))) %>%
+      add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after = "Ward")
+  })
+  
+  output$patienttable <- DT::renderDataTable(
+    DT::datatable(
+      rv$data(),
+      container = htmltools::withTags(table(tableHeader(c(rv$colnames_comment())), tableFooter(rep_along(rv$colnames_comment(), "")))),
+      rownames = FALSE,
+      filter = list(
+        position = "top",
+        pageLength = 5,
+        autoWidth = TRUE,
+        clear = TRUE
+      ),
+      selection = 'none',#list(
+      #  mode = "single",
+      #  target = "cell",
+      #  selectable = as.matrix(expand.grid(seq_len(nrow(patient_data())), seq(n_fixed_columns, length(rv$colnames_comment()))))
+      #),
+      extensions = c("FixedHeader", "Responsive", "Select"),
+      escape = FALSE,
+      options = list(
+        columnDefs = c(
+          rv$columnDefs(),
+          list(list(className = "dt-center", targets = seq(0, length(rv$colnames_comment()) - 1))) # center the contents of all cells
+        ),
+        dom = 'tipr',
+        select = list(
+          style="single", 
+          items="cell",
+          selector=".data-cell"
+        ),
+        autoWidth = FALSE,
+        bAutoWidth = FALSE,
+        fixedHeader = TRUE,
+        footerCallback = JS("function(row, data, start, end, display) { footerSummary(this.api(), row, data, start, end, display); }"),
+        rowCallback = JS("function(row, data, displayNum) { processCellData(this.api(), row, data, displayNum); }"),
+        reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
+        drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } "),
+        initComplete = JS("function() { onInitComplete(this.api()); }")
+      )
+    ),
+    
+    # disable server-side processing of data table input (see https://rstudio.github.io/DT/server.html) 
+    # - required because we are using tibbles with named lists as cell items which (as of 23-04-03) cannot
+    #   be processed by the server (with an error like "DataTables warning: table id=DataTables_Table_0 - 
+    #   Error in `[<-.data.frame`(`*tmp*`, , j, value = list(structure(list(A = c("A", : replacement element 1 is a matrix/data frame of 3 rows, need 2)"
+    server = FALSE, 
+  )
+
+  
+
 
 
   ##### Functions for popup window #####

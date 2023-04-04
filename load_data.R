@@ -240,6 +240,7 @@ load_recommendation_variables <- function(recommendation_url) {
 
   req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
   data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+  
   criteria <- data$criterion %>%
     as_tibble() %>%
     rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)

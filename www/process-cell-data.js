@@ -136,3 +136,9 @@ function footerSummary(api, row, data, start, end, display) {
         $(c.footer()).html(p.toFixed(0) + '%');
     }
 }
+
+function onInitComplete(api) {
+  $(document).on('hidden.bs.modal','#shiny-modal', function () {
+    api.cells({selected: true}).deselect();
+  });
+}

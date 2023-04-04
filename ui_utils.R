@@ -65,6 +65,16 @@ generate_columnDefs <- function(colnames) {
   return(columnDefs)
 }
 
+visibleColumnIndices <- function(columnDefs)  {
+  indices <- which(unlist(lapply(columnDefs, function(x) x$visible)))
+  return(indices)
+}
+
+dataColumnIndices <- function(columnDefs)  {
+  indices <- which(unlist(lapply(columnDefs, function(x) x$visible & grepl("\\.data$", x$name))))
+  return(indices)
+}
+
 
 # Define a function to generate a random string
 generate_random_string <- function(length = 10) {
