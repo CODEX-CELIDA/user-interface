@@ -90,6 +90,33 @@ dataColumnIndices <- function(columnDefs)  {
   return(indices)
 }
 
+nondataColumnIndices <- function(columnDefs)  {
+  #' Get indices of entries based on specific conditions and visibility.
+  #'
+  #' This function takes a list of named lists and returns the indices of all entries that:
+  #' 1. do not end in ".data" in the "name" entry,
+  #' 2. do not start with the prefix of any of the "name" entries ending in ".data",
+  #' 3. have "visible" entry set to TRUE.
+  #'
+  #' @param named_lists A list of named lists, where each named list contains a "visible" entry and a "name" entry.
+  #'
+  #' @return A numeric vector with the indices of the entries meeting the specified conditions and with "visible" set to TRUE.
+  # Extract names and visible entries
+  names_vector <- sapply(columnDefs, function(x) x$name)
+  visible_vector <- sapply(columnDefs, function(x) x$visible)
+  
+  # Identify the entries ending in ".data"
+  data_suffix_entries <- grepl("\\.data$", names_vector)
+  
+  # Extract the prefixes of the entries ending in ".data"
+  data_prefixes <- sub("\\.data$", "", names_vector[data_suffix_entries])
+  
+  # Check if each entry in the names_vector starts with any of the data_prefixes, doesn't end with ".data", and is visible
+  indices <- which(!data_suffix_entries & !sapply(names_vector, function(x) any(sapply(data_prefixes, function(y) grepl(paste0("^", y), x)))) & visible_vector)
+  indices <- unname(indices)
+  
+  return(indices)
+}
 
 generate_random_string <- function(length = 10) {
   #' Generate a random string.

@@ -94,14 +94,10 @@ ui <- fluidPage(
 )
 
 
-
 ##############################################################################
 
 ############# Server ############
 server <- function(input, output, session) {
-  # TODO: make dynamic
-  n_fixed_columns <- 3 # number of fixed columns before the recommendation columns (3: Name, Ward, Comment)
-
   # REACTIVE VALUES
 
   # Overview of patients and the P/I state (for left side)
@@ -110,7 +106,15 @@ server <- function(input, output, session) {
   # "I" or "o", indicating whether the patient belongs to (P)opulation,
   # (I)ntervention, Population & Intervention (PI) or none (o).
   patient_overview <- reactive({
-    load_patient_list(isolate(input$recommendation_url), start_datetime = format(input$observation_window[1]), end_datetime = format(input$observation_window[2]))
+    load_patient_list(
+      #isolate(input$recommendation_url), # retrieve only selected recommendations
+      # retrieve all recommendations - required currently selecting a different subset
+      # of recommendations currently does not fetch new data, it just subsets the 
+      # dataset of all retrieved recommendations (thus, just retrieve all at this point)
+      recommendations$recommendation_url, 
+      start_datetime = format(input$observation_window[1]), 
+      end_datetime = format(input$observation_window[2])
+    )
   })
 
   # Patient overview filtered by ward
@@ -129,12 +133,23 @@ server <- function(input, output, session) {
   rv$selected_person_id <- reactive({
     patient_data()[input$patienttable_cells_selected[1], ]$person_id
   })
-  
 
   rv$selected_recommendation_url <- reactive({
-    if ((length(input$patienttable_cells_selected) > 0) && (input$patienttable_cells_selected[2] > n_fixed_columns - 1)) {
-      print(input$patienttable_cells_selected)
-      input$recommendation_url[input$patienttable_cells_selected[2] - n_fixed_columns + 1]
+    if ((length(input$patienttable_cells_selected) > 0)) {
+      
+      # Apparently shiny DT starts with a column index of 0 (?)
+      col_index <- input$patienttable_cells_selected[2] + 1
+      
+      # get a list of datatable column indices with visible data - these are the ones
+      # that are selectable and the length of that vector is the same as the length 
+      # of the selected recommendations. thus, by finding the position at which the
+      # selected column index is in that list, we can determine which recommendation url
+      # was selected
+      recommendation_idx <- which(dataColumnIndices(rv$columnDefs()) == col_index)
+      assertthat::assert_that(length(recommendation_idx) > 0)
+      
+      # select the recommendation_url corresponding to the selected column index
+      input$recommendation_url[recommendation_idx]
     }
   })
 
@@ -198,11 +213,7 @@ server <- function(input, output, session) {
         autoWidth = TRUE,
         clear = TRUE
       ),
-      selection = 'none',#list(
-      #  mode = "single",
-      #  target = "cell",
-      #  selectable = as.matrix(expand.grid(seq_len(nrow(patient_data())), seq(n_fixed_columns, length(rv$colnames_comment()))))
-      #),
+      selection = 'none',
       extensions = c("FixedHeader", "Responsive", "Select"),
       escape = FALSE,
       options = list(

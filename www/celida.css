@@ -15,7 +15,7 @@ h1 {
 td.data-cell {
   font-style:bold;
   font-size: 16pt;
-  cursor: zoom-in;
+  cursor: pointer;
 }
 
 div.comment-available {
