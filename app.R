@@ -1,6 +1,7 @@
 library(tidyverse)
 library(shiny)
 library(shinythemes)
+library(shinyWidgets)
 library(DT)
 library(eeptools)
 library(jsonlite)
@@ -11,7 +12,7 @@ library(shinycssloaders)
 
 source("load_data.R")
 # source("load_data_devel.R")
-source("dropdownbutton.R")
+source("ui_utils.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
 
@@ -19,25 +20,24 @@ addResourcePath(prefix = "img", directoryPath = "images")
 ui <- fluidPage(
   theme = shinytheme("cerulean"),
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "celida.css")
+    tags$link(rel = "stylesheet", type = "text/css", href = paste0("celida.css?", generate_random_string()))
   ),
-  tags$script(src = "process-cell-data.js"),
-  tags$script(src = "batterybar.js"),
+  tags$script(src = paste0("process-cell-data.js?", generate_random_string())),
+  tags$script(src = paste0("batterybar.js?", generate_random_string())),
   #*************************************************************************
   fluidRow(
     column(
       2,
-      img(src = "img/celida-logo-white.png", height = 100),
+      img(src = "img/celida-logo-white.png", height = 100)
     ),
     column(2, img(src = "img/logo_num.jpg", height = 100)),
     column(5,
       h2("Guideline Recommendation"),
       dropdownButton(
         label = "Guideline Recommendation",
-        status = "default",
-        width = "100%",
-        tags$div(
-          class = "container",
+        #status = "default",
+        status = "primary",
+        
           checkboxGroupInput(
             inputId = "recommendation_url",
             label = "Guideline Recommendation",
@@ -46,7 +46,7 @@ ui <- fluidPage(
             choiceValues = recommendations$recommendation_url,
             selected = recommendations$recommendation_url
           )
-        )
+        
       ),
       align = "center"
     ),
@@ -258,27 +258,6 @@ server <- function(input, output, session) {
 
 
   ##############################################################################
-  # Footer (code to display summary statistics)
-  ##############################################################################
-
-  footerJS <- paste0("
-  function(row, data, start, end, display) {
-    var api = this.api(), data;
-    var floatVal = function (i, match) {
-        if (Array.isArray(i)) {
-          return floatVal(i[0]);
-        }
-        return parseFloat(i);
-    };
-    for(i=", n_fixed_columns, "; i<api.columns().nodes().length;i++) {
-      var p = api.column(i, { search: 'applied' }).data().reduce(function(a, b) { return floatVal(a) + floatVal(b) }, 0);
-      p = p * 100 / api.column(i, { search: 'applied' }).data().length;
-      
-      $( api.column(i).footer() ).html(p.toFixed(0) + '%');
-    }
-  }")
-
-  ##############################################################################
 
   shinyInput <- function(FUN, len, id, ...) {
     inputs <- character(len)
@@ -293,15 +272,19 @@ server <- function(input, output, session) {
   options(DT.options = list(pageLength = 20))
   observeEvent(input$recommendation_url, {
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
-
-    colnames <- c("Patient", "Ward", recommendation_names_short)
-    colnames_comment <- c("Patient", "Ward", "Comment", recommendation_names_short)
-
+    colnames_expanded <- expand_colnames(recommendation_names_short)
+    
+    #colnames <- c("Patient", "Ward", colnames_expanded)
+    colnames_comment <- c("Patient", "Ward", "Comment", colnames_expanded)
+    columnDefs <- generate_columnDefs(colnames_comment)
+    
+    data <- patient_data() %>%
+      select(all_of( c("Patient", "Ward", colnames_expanded))) %>%
+      add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after = "Ward")
+  
     output$patienttable <- DT::renderDataTable(
       DT::datatable(
-        patient_data() %>%
-          select(all_of(colnames)) %>%
-          add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after = "Ward"),
+        data,
         container = htmltools::withTags(table(tableHeader(c(colnames_comment)), tableFooter(rep_along(colnames_comment, "")))),
         rownames = FALSE,
         filter = list(
@@ -315,7 +298,6 @@ server <- function(input, output, session) {
           target = "cell",
           selectable = as.matrix(expand.grid(seq_len(nrow(patient_data())), seq(n_fixed_columns, length(colnames))))
         ),
-        colnames = colnames,
         extensions = c("FixedHeader", "Responsive"),
         escape = FALSE,
         options = list(
@@ -323,12 +305,12 @@ server <- function(input, output, session) {
           autoWidth = FALSE,
           bAutoWidth = FALSE,
           fixedHeader = TRUE,
-          footerCallback = JS(footerJS),
-          columnDefs = list(
-            list(className = "dt-center", targets = seq(0, length(colnames_comment) - 1))
-            #, list(targets = seq(3, length(colnames_comment) - 1), type="num", render=list(filter=0))
+          footerCallback = JS("function(row, data, start, end, display) { footerSummary(this.api(), row, data, start, end, display); }"),
+          columnDefs = c(
+            columnDefs,
+            list(list(className = "dt-center", targets = seq(0, length(colnames_comment) - 1))) # center the contents of all cells
           ),
-          rowCallback = JS("function(row, data, dataIndex) { processCellData(row, data, dataIndex); }"),
+          rowCallback = JS("function(row, data, displayNum) { processCellData(this.api(), row, data, displayNum); }"),
           reDrawCallback = JS("function() { Shiny.unbindAll(this.api().table().node()); }"),
           drawCallback = JS("function() { Shiny.bindAll(this.api().table().node()); } ")
         )

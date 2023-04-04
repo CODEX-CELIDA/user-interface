@@ -12,13 +12,20 @@ h1 {
 	min-width: 1200px;
 }
 
-.comment-available {
-	width: 20px;
-	height: 20px;
+td.data-cell {
+  font-style:bold;
+  font-size: 16pt;
+}
+
+div.comment-available {
+	width: 30px;
+	height: 30px;
 	position: absolute;
 	bottom: 0;
 	right: 0;
 }
+
+
 
 .dataTable td {
 	position: relative;
@@ -33,3 +40,21 @@ h1 {
 .dataTable thead td {
 	z-index: 1;
 }
+
+ul.dropdown-menu {
+  position: absolute;
+  list-style-type: none;
+  width: fit-content;
+  box-sizing: border-box;
+}
+
+ul.dropdown-menu li {
+  display: inline-block;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+
+
+
+
