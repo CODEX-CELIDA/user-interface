@@ -1,0 +1,61 @@
+:root {
+	--population-intervention-color: #0be60b;
+	--population-color: #ff3333;
+	--none-color: #e1e1e1;
+}
+
+h1 {
+	margin-top: 0;
+}
+
+.modal-lg {
+	min-width: 1200px;
+}
+
+td.data-cell {
+  font-style:bold;
+  font-size: 16pt;
+  cursor: pointer;
+}
+
+div.comment-available {
+	width: 30px;
+	height: 30px;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
+
+
+
+.dataTable td {
+	position: relative;
+}
+
+.legend-icon {
+	display: inline-block;
+	width: 20px;
+	height: 10px;
+}
+
+.dataTable thead td {
+	z-index: 1;
+}
+
+ul.dropdown-menu {
+  position: absolute;
+  list-style-type: none;
+  width: fit-content;
+  box-sizing: border-box;
+}
+
+ul.dropdown-menu li {
+  display: inline-block;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+
+
+
+

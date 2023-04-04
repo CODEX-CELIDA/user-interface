@@ -4,4 +4,4 @@
 .Ruserdata
 .env
 data/
-test.R
+test*.R

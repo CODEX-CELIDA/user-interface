@@ -38,6 +38,39 @@ rec_map <- list(
   "short" = c("No ACT", "Sepsis/Tidal", "C19/Tidal", "PEEP", "p-ACT", "t-ACT", "Proning")
 ) %>% as_tibble()
 
+
+COLUMN_SUFFIXES <- c(".data", ".days", ".comment")
+
+
+expand_colnames <- function(colnames, suffixes=COLUMN_SUFFIXES) {
+  #' Expand Column Names with Custom Suffixes
+  #'
+  #' This function takes a character vector of column names and a character vector
+  #' of suffixes, and expands the column names by appending each suffix to each
+  #' column name. The expanded column names are returned in a specific order,
+  #' with each group of suffixes appearing together in the sequence.
+  #'
+  #' @param colnames A character vector containing the original column names
+  #' @param suffixes A character vector containing the custom suffixes to be
+  #'        appended to the column names
+  #'
+  #' @return A character vector containing the expanded column names in the
+  #'         specified order, with each group of suffixes appearing together
+  #'         in the sequence
+  #'
+  #' @examples
+  #' ## Expand a vector of column names with custom suffixes
+  #' original_colnames <- c("A", "B")
+  #' custom_suffixes <- c(".data", ".days", ".comment")
+  #' expanded_colnames <- expand_colnames(original_colnames, custom_suffixes)
+  #' print(expanded_colnames)
+  
+  ordered_colnames <- unname(unlist(lapply(colnames, function(x) sapply(suffixes, function(s) paste0(x, s)))))
+  
+  return(ordered_colnames)
+}
+
+
 load_recommendations <- function() {
   #' Load Recommendations
   #'
@@ -97,6 +130,7 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
   #'
 
   patients <- tibble()
+  rec_short_names <- rec_map$short
 
   if (is.null(selected_recommendation_urls)) {
     return(patients)
@@ -127,20 +161,70 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
     # no patients received - return a valid tibble but without rows
     patients <- bind_cols(
       tibble(Patient=character(), person_id=character(), Ward=character(), .rows=0),
-      tibble(!!!rec_map$short, .rows=0, .name_repair = ~ rec_map$short)
+      tibble(!!!rec_short_names, .rows=0, .name_repair = ~ rec_short_names)
     )
   }
 
-  # make up percentage data
-  patients <- patients %>%
-    mutate_at(all_of(rec_map$short), ~ round(runif(nrow(patients), 0, 100)))
 
   # make up comment data
-  comments <- patients %>%
-    mutate_at(all_of(rec_map$short), ~ runif(nrow(patients)) > 0.5)
-
-  return(list(patients = patients, run_id = run_ids, comments = comments))
+  t_comment <- patients %>%
+    mutate_at(all_of(rec_short_names), ~ runif(nrow(patients)) > 0.5)
+  
+  # make up day data
+  generate_random_strings <- function(x, n) {
+    random_strings <- sapply(1:x, function(i) {
+      random_digits <- sample(0:2, n, replace = TRUE)
+      random_string <- paste0(random_digits, collapse = "")
+      return(random_string)
+    })
+    return(random_strings)
+  }
+  
+  n_days <- 10
+  t_days <- patients %>%
+    mutate_at(vars(all_of(rec_short_names)), ~ generate_random_strings(length(.), n_days))
+  
+  # determine percentage data
+  percentage <- function(input_vector) {
+    result <- sapply(input_vector, function(input_string) {
+    split <- strsplit(input_string, "")[[1]]
+    
+    # Count the occurrences of 1 and 2
+    count_1 <- sum(split == "1")
+    count_2 <- sum(split == "2")
+    
+    # Divide the number of 2s by the sum of the number of 1s and 2s
+    result <- round(count_2 / (count_1 + count_2) * 100, 2)
+    
+    return(result)
+    })
+    
+    return(result)
+  }
+  
+  t_percentage <- t_days %>% mutate(across(all_of(rec_short_names), percentage))
+  
+  # combine days, percentage and comment data into a single tibble
+  t_percentage <- t_percentage %>% rename_with(~paste0(., ".data"))
+  t_days <- t_days %>% rename_with(~paste0(., ".days"))
+  t_comment <- t_comment %>% rename_with(~paste0(., ".comment"))
+  
+  # Combine tibbles
+  combined_tibble <- bind_cols(t_percentage, t_days, t_comment)
+  
+  # Generate the desired order of column names
+  expanded_colnames <- expand_colnames(rec_short_names)
+  
+  # Reorder columns
+  ordered_tibble <- combined_tibble %>% select(all_of(expanded_colnames))
+  
+  result <- bind_cols(patients %>% select(-all_of(rec_short_names)), ordered_tibble)
+  return(list(patients = result, run_id = run_ids))
 }
+
+#t_days<-load_patient_list(rec_map$recommendation_url, start_datetime="2023-01-01", end_datetime="2023-04-03")
+
+
 
 load_recommendation_variables <- function(recommendation_url) {
   #' Load Recommendation Variables
@@ -156,6 +240,7 @@ load_recommendation_variables <- function(recommendation_url) {
 
   req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
   data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+  
   criteria <- data$criterion %>%
     as_tibble() %>%
     rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)
