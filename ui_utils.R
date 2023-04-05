@@ -65,7 +65,7 @@ generate_columnDefs <- function(colnames) {
   return(columnDefs)
 }
 
-visibleColumnIndices <- function(columnDefs)  {
+visibleColumnIndices <- function(columnDefs) {
   #' Get indices of visible columns.
   #'
   #' This function returns the indices of visible columns in a list of column definitions.
@@ -77,7 +77,7 @@ visibleColumnIndices <- function(columnDefs)  {
   return(indices)
 }
 
-dataColumnIndices <- function(columnDefs)  {
+dataColumnIndices <- function(columnDefs) {
   #' Get indices of visible columns with names ending in ".data".
   #'
   #' This function returns the indices of visible columns in a list of column definitions
@@ -90,7 +90,7 @@ dataColumnIndices <- function(columnDefs)  {
   return(indices)
 }
 
-nondataColumnIndices <- function(columnDefs)  {
+nondataColumnIndices <- function(columnDefs) {
   #' Get indices of entries based on specific conditions and visibility.
   #'
   #' This function takes a list of named lists and returns the indices of all entries that:
@@ -104,17 +104,17 @@ nondataColumnIndices <- function(columnDefs)  {
   # Extract names and visible entries
   names_vector <- sapply(columnDefs, function(x) x$name)
   visible_vector <- sapply(columnDefs, function(x) x$visible)
-  
+
   # Identify the entries ending in ".data"
   data_suffix_entries <- grepl("\\.data$", names_vector)
-  
+
   # Extract the prefixes of the entries ending in ".data"
   data_prefixes <- sub("\\.data$", "", names_vector[data_suffix_entries])
-  
+
   # Check if each entry in the names_vector starts with any of the data_prefixes, doesn't end with ".data", and is visible
   indices <- which(!data_suffix_entries & !sapply(names_vector, function(x) any(sapply(data_prefixes, function(y) grepl(paste0("^", y), x)))) & visible_vector)
   indices <- unname(indices)
-  
+
   return(indices)
 }
 
@@ -158,7 +158,7 @@ getPlotUIs <- function(vars, type) {
         style = "padding:0;margin-bottom:0;"
       )
     ))
-    
+
     do.call(tabsetPanel, c(myTabs, list(id = glue("{type}Panel"))))
   }))
 }
@@ -191,18 +191,18 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
     # per variable_name. This is intended at this point in order to show each
     # variable just once, but may not be correct behaviour in general.
     distinct(variable_name, .keep_all = TRUE)
-  
+
   for (i in seq_len(nrow(vars))) {
     var <- vars$variable_name[i]
     criterion_name <- vars$criterion_name[i]
-    
-    
+
+
     local({
       plotname <- paste("plot", type, var, sep = "_")
       localvar <- var
-      
+
       data <- load_data(person_id = person_id, run_id = run_id, criterion_name = criterion_name)
-      
+
       output[[plotname]] <- renderPlotly({
         if (is.null(data) || nrow(data) == 0) {
           # no data
@@ -231,11 +231,11 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
             geom_line() +
             geom_point()
         }
-        
+
         ggplotly(ggp +
-                   xlab("Date") +
-                   ylab(localvar) +
-                   coord_cartesian(xlim = c(min_dt, max_dt)))
+          xlab("Date") +
+          ylab(localvar) +
+          coord_cartesian(xlim = c(min_dt, max_dt)))
       })
     })
   }

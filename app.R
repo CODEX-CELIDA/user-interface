@@ -35,18 +35,15 @@ ui <- fluidPage(
       h2("Guideline Recommendation"),
       dropdownButton(
         label = "Guideline Recommendation",
-        #status = "default",
         status = "primary",
-        
-          checkboxGroupInput(
-            inputId = "recommendation_url",
-            label = "Guideline Recommendation",
-            width = "100%",
-            choiceNames = lapply(recommendations %>% str_glue_data("<b>[{short}]</b> {recommendation_title}"), HTML),
-            choiceValues = recommendations$recommendation_url,
-            selected = recommendations$recommendation_url
-          )
-        
+        checkboxGroupInput(
+          inputId = "recommendation_url",
+          label = "Guideline Recommendation",
+          width = "100%",
+          choiceNames = lapply(recommendations %>% str_glue_data("<b>[{short}]</b> {recommendation_title}"), HTML),
+          choiceValues = recommendations$recommendation_url,
+          selected = recommendations$recommendation_url
+        )
       ),
       align = "center"
     ),
@@ -59,6 +56,7 @@ ui <- fluidPage(
         min = "2021-01-01",
         max = Sys.Date(),
         width = "100%",
+        weekstart = 1
       ),
       align = "center",
     )
@@ -75,16 +73,16 @@ ui <- fluidPage(
       wellPanel(
         DT::dataTableOutput("patienttable") %>% shinycssloaders::withSpinner(type = 6),
         h3("Legend"),
-        div(class="legend-icon", style = "background-color: var(--population-intervention-color);"),
+        div(class = "legend-icon", style = "background-color: var(--population-intervention-color);"),
         "Patient is treated according to the recommendation",
         br(),
-        div(class="legend-icon", style = "background-color: var(--population-color);"),
+        div(class = "legend-icon", style = "background-color: var(--population-color);"),
         "Patient is not treated according to the recommendation",
         br(),
-        div(class="legend-icon", style = "background-color: var(--none-color);"),
+        div(class = "legend-icon", style = "background-color: var(--none-color);"),
         "Recommendation not applicable to the patient",
         br(),
-        div(class="legend-icon", HTML("&#x1F4AC")),
+        div(class = "legend-icon", HTML("&#x1F4AC")),
         "Comment available",
         br(),
         align = "left"
@@ -107,12 +105,12 @@ server <- function(input, output, session) {
   # (I)ntervention, Population & Intervention (PI) or none (o).
   patient_overview <- reactive({
     load_patient_list(
-      #isolate(input$recommendation_url), # retrieve only selected recommendations
+      # isolate(input$recommendation_url), # retrieve only selected recommendations
       # retrieve all recommendations - required currently selecting a different subset
-      # of recommendations currently does not fetch new data, it just subsets the 
+      # of recommendations currently does not fetch new data, it just subsets the
       # dataset of all retrieved recommendations (thus, just retrieve all at this point)
-      recommendations$recommendation_url, 
-      start_datetime = format(input$observation_window[1]), 
+      recommendations$recommendation_url,
+      start_datetime = format(input$observation_window[1]),
       end_datetime = format(input$observation_window[2])
     )
   })
@@ -124,7 +122,7 @@ server <- function(input, output, session) {
   patient_data <- reactive({
     patient_overview()$patients
   })
-  
+
   # Observe cell clicks and set person_id and recommendation_url accordingly
   rv <- reactiveValues()
 
@@ -136,18 +134,17 @@ server <- function(input, output, session) {
 
   rv$selected_recommendation_url <- reactive({
     if ((length(input$patienttable_cells_selected) > 0)) {
-      
       # Apparently shiny DT starts with a column index of 0 (?)
       col_index <- input$patienttable_cells_selected[2] + 1
-      
+
       # get a list of datatable column indices with visible data - these are the ones
-      # that are selectable and the length of that vector is the same as the length 
+      # that are selectable and the length of that vector is the same as the length
       # of the selected recommendations. thus, by finding the position at which the
       # selected column index is in that list, we can determine which recommendation url
       # was selected
       recommendation_idx <- which(dataColumnIndices(rv$columnDefs()) == col_index)
       assertthat::assert_that(length(recommendation_idx) > 0)
-      
+
       # select the recommendation_url corresponding to the selected column index
       input$recommendation_url[recommendation_idx]
     }
@@ -182,26 +179,26 @@ server <- function(input, output, session) {
 
   # Patient data table
   options(DT.options = list(pageLength = 20))
-  
+
   rv$colnames_expanded <- reactive({
     recommendation_names_short <- (recommendations %>% filter(recommendation_url %in% input$recommendation_url))$short
     expand_colnames(recommendation_names_short)
   })
-  
+
   rv$colnames_comment <- reactive({
     c("Patient", "Ward", "Comment", rv$colnames_expanded())
   })
-  
+
   rv$columnDefs <- reactive({
     generate_columnDefs(rv$colnames_comment())
   })
-  
+
   rv$data <- reactive({
     data <- patient_data() %>%
-      select(all_of( c("Patient", "Ward", rv$colnames_expanded()))) %>%
+      select(all_of(c("Patient", "Ward", rv$colnames_expanded()))) %>%
       add_column(shinyInput(textAreaInput, nrow(patient_data()), "cbox_"), .after = "Ward")
   })
-  
+
   output$patienttable <- DT::renderDataTable(
     DT::datatable(
       rv$data(),
@@ -213,7 +210,7 @@ server <- function(input, output, session) {
         autoWidth = TRUE,
         clear = TRUE
       ),
-      selection = 'none',
+      selection = "none",
       extensions = c("FixedHeader", "Responsive", "Select"),
       escape = FALSE,
       options = list(
@@ -221,11 +218,11 @@ server <- function(input, output, session) {
           rv$columnDefs(),
           list(list(className = "dt-center", targets = seq(0, length(rv$colnames_comment()) - 1))) # center the contents of all cells
         ),
-        dom = 'tipr',
+        dom = "tipr",
         select = list(
-          style="single", 
-          items="cell",
-          selector=".data-cell"
+          style = "single",
+          items = "cell",
+          selector = ".data-cell"
         ),
         autoWidth = FALSE,
         bAutoWidth = FALSE,
@@ -237,15 +234,15 @@ server <- function(input, output, session) {
         initComplete = JS("function() { onInitComplete(this.api()); }")
       )
     ),
-    
-    # disable server-side processing of data table input (see https://rstudio.github.io/DT/server.html) 
+
+    # disable server-side processing of data table input (see https://rstudio.github.io/DT/server.html)
     # - required because we are using tibbles with named lists as cell items which (as of 23-04-03) cannot
-    #   be processed by the server (with an error like "DataTables warning: table id=DataTables_Table_0 - 
+    #   be processed by the server (with an error like "DataTables warning: table id=DataTables_Table_0 -
     #   Error in `[<-.data.frame`(`*tmp*`, , j, value = list(structure(list(A = c("A", : replacement element 1 is a matrix/data frame of 3 rows, need 2)"
-    server = FALSE, 
+    server = FALSE,
   )
 
-  
+
 
 
 
