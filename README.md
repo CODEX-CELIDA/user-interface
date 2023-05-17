@@ -8,6 +8,23 @@ The user interface allows users to explore individual patients and the applicabi
 
 ## Usage
 
+### Run with docker
+
+1. Pull image from docker hub
+
+   ```bash
+   docker pull glichtner/celida-user-interface:main
+   ```
+
+2. Run container with specified environment variables
+   ```bash
+      docker run -p 8000:3838 glichtner/celida-user-interface:main
+   ```
+
+3. Open `http://localhost:8000` in your browser.
+
+### Run from source
+
 The [CELIDA Execution Engine](https://github.com/CODEX-CELIDA/execution-engine) FastAPI interface needs to be running for the user interface to fetch data from it.
 
 To launch the user interface, simply run the following code in shell:
