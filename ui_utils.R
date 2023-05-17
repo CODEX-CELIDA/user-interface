@@ -201,7 +201,7 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
       plotname <- paste("plot", type, var, sep = "_")
       localvar <- var
 
-      data <- load_data(person_id = person_id, run_id = run_id, criterion_name = criterion_name)
+      data <- load_data(person_id = person_id, run_id = run_id, criterion_name = criterion_name, start_date=min_dt, end_date=max_dt)
 
       output[[plotname]] <- renderPlotly({
         if (is.null(data) || nrow(data) == 0) {

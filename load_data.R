@@ -21,6 +21,8 @@ library(readr)
 library(dplyr)
 library(lubridate)
 
+OFFLINE <- nchar(Sys.getenv('OFFLINE')) > 0
+OFFLINE_PATH = 'offline-data/'
 
 base_url <- "http://localhost:8001"
 # base_url <- Sys.getenv("UI_BACKEND_SERVER")
@@ -40,6 +42,10 @@ rec_map <- list(
 
 
 COLUMN_SUFFIXES <- c(".data", ".days", ".comment")
+
+read_offline_data <- function(name) {
+  return(read_csv(paste0(OFFLINE_PATH, name, '.csv'), show_col_types = FALSE))
+}
 
 
 expand_colnames <- function(colnames, suffixes = COLUMN_SUFFIXES) {
@@ -79,11 +85,19 @@ load_recommendations <- function() {
   #'
   #' @return A tibble data frame containing the recommendations with added columns from the mapping data frame.
   #' @export
+  
+  if(!OFFLINE) {
+    req <- GET(paste0(base_url, "/recommendation/list"))
+    
+    recommendations <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>%
+      as_tibble() %>%
+      inner_join(rec_map, by = "recommendation_url")
+  } else {
+    recommendations <- read_offline_data("recommendations")
+  }
 
-  req <- GET(paste0(base_url, "/recommendation/list"))
-  recommendations <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8")) %>%
-    as_tibble() %>%
-    inner_join(rec_map, by = "recommendation_url")
+  #write_csv(recommendations, "data-new/recommendations.csv")
+  
   return(recommendations)
 }
 
@@ -136,16 +150,22 @@ load_patient_list <- function(selected_recommendation_urls, start_datetime, end_
     return(patients)
   }
 
-  for (recommendation_url in selected_recommendation_urls) {
-    req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
-
-    data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
-    run_id <- data$run_id
-    pat_data <- data$data %>%
-      as_tibble() %>%
-      mutate(run_id = run_id, url = recommendation_url)
-    patients <- bind_rows(patients, pat_data)
+  if (!OFFLINE) {
+    for (recommendation_url in selected_recommendation_urls) {
+      req <- GET(paste0(base_url, "/patient/list/?recommendation_url=", URLencode(recommendation_url), "&start_datetime=", URLencode(as.character(start_datetime)), "&end_datetime=", URLencode(as.character(end_datetime))))
+      
+      data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+      run_id <- data$run_id
+      pat_data <- data$data %>%
+        as_tibble() %>%
+        mutate(run_id = run_id, url = recommendation_url)
+      patients <- bind_rows(patients, pat_data)
+    }
+  } else {
+    patients <- read_offline_data("patients")
   }
+
+  #write_csv(patients, "data-new/patients.csv")
 
   run_ids <- patients %>% distinct(run_id, url)
 
@@ -238,22 +258,33 @@ load_recommendation_variables <- function(recommendation_url) {
   #' @examples
   #' criteria <- load_recommendation_variables("www.example.com/recommendation/1234")
 
-  req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
-  data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+  if(!OFFLINE) {
+    req <- GET(paste0(base_url, "/recommendation/criteria/?recommendation_url=", URLencode(recommendation_url)))
+    data <- jsonlite::fromJSON(content(req, as = "text", encoding = "UTF-8"))
+    
+    criteria <- data$criterion %>%
+      as_tibble() %>%
+      rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)  
+  } else {
+    criteria <- read_offline_data("criteria") %>% filter({{recommendation_url}} == recommendation_url)
+  }
+  
 
-  criteria <- data$criterion %>%
-    as_tibble() %>%
-    rename(type = cohort_category, variable_name = concept_name, criterion_name = unique_name)
-
+  #library(cli)
+  #rec_hash = hash_md5(recommendation_url)
+  #write_csv(criteria %>% mutate(recommendation_url=recommendation_url), glue("data-new/criteria-{rec_hash}.csv"))
+  
   return(criteria)
 }
 
-load_data <- function(person_id, run_id, criterion_name) {
+load_data <- function(person_id, run_id, criterion_name, start_date, end_date) {
   #' Load patient data based on person_id, run_id, and criterion_name
   #'
   #' @param person_id character string identifying a person
   #' @param run_id character string identifying a run
   #' @param criterion_name character string identifying a criterion
+  #' @param min_dt datetime of the beginning of the observation window
+  #' @param max_dt datetime of the end of the observation window
   #'
   #' @return a tibble with patient data, arranged by datetime. Columns may include:
   #'   - `datetime`: start datetime of the patient data
@@ -267,6 +298,11 @@ load_data <- function(person_id, run_id, criterion_name) {
   #'
   if (is.null(person_id) | length(person_id) == 0) {
     return(NULL)
+  }
+
+  if(OFFLINE) {
+    tbl <- generate_tibble(person_id, start_date, end_date, criterion_name)
+    return(tbl)
   }
 
   req <- GET(paste0(base_url, "/patient/data/?person_id=", URLencode(as.character(person_id)), "&run_id=", URLencode(as.character(run_id)), "&criterion_name=", URLencode(criterion_name)))
@@ -304,5 +340,143 @@ load_data <- function(person_id, run_id, criterion_name) {
       mutate(end_datetime = parse_datetime(end_datetime))
   }
 
+  
+  #write_csv(patientdata, glue("data-new/patientdata-{person_id}.csv"))
+  
   return(patientdata)
 }
+
+
+generate_tibbleX <- function(person_id, start_date, end_date, criterion_name){
+
+  # seed the random number generator
+  md5_hash = digest::digest(criterion_name, "md5")
+  set.seed(as.integer(person_id) + strtoi(substr(md5_hash, 1, 5), 16))
+  
+  # initialize the parameter_concept_id to 0
+  parameter_concept_id <- 0
+  
+  # determine the type of the criterion and number of entries
+  if (any(startsWith(criterion_name, c("Measurement_", "TidalVolumePerIdealBodyWeight_", "ConceptCriterion_")))) {
+    num_entries <- sample(24:24*60, 1) # measurements: once per day to once per hour
+  } else if (startsWith(criterion_name, "DrugExposure_")){
+    num_entries <- sample(0:2, 1) # drug exposures: 0 to 2 times per day
+  } else if (any(startsWith(criterion_name, c("ConditionOccurrence_", "ProcedureOccurrence_", "VisitOccurrence_")))) {
+    num_entries <- sample(0:1, 1) # occurrences: 0 to 1 times per day
+  } else (
+    stop("No entry found for criterion_name = ", criterion_name)
+  )
+  
+  # generate datetime and end_datetime
+  datetimes <- sample(seq(as.POSIXct(start_date), as.POSIXct(end_date), by="min"), num_entries)
+  end_datetimes <- datetimes + dminutes(sample(0:60, num_entries, replace = TRUE)) # random duration for occurrences
+  
+  # generate values
+  if (any(startsWith(criterion_name, c("Measurement_", "TidalVolumePerIdealBodyWeight_", "ConceptCriterion_")))) {
+    if (grepl("aPTT", criterion_name)) values <- runif(num_entries, 20, 40) # adjust as per clinically plausible values
+    else if (grepl("Tidal-volume", criterion_name)) values <- runif(num_entries, 5, 10)
+    else if (grepl("D-dimer", criterion_name)) values <- runif(num_entries, 0, 0.5)
+    else if (grepl("PEEP", criterion_name)) values <- runif(num_entries, 5, 20)
+    else if (grepl("Body-weight", criterion_name)) values <- runif(num_entries, 50, 100)
+    else if (grepl("Inhaled-oxygen-concentration", criterion_name)) values <- runif(num_entries, 21, 100)
+    else if (grepl("Horowitz-index", criterion_name)) values <- runif(num_entries, 200, 500)
+    else if (grepl("Pressure-max", criterion_name)) values <- runif(num_entries, 10, 30)
+  } else if (startsWith(criterion_name, "DrugExposure_")){
+    values <- runif(num_entries, 0.1, 1.0) # adjust as per clinically plausible values
+  } else if (any(startsWith(criterion_name, c("ConditionOccurrence_", "ProcedureOccurrence_", "VisitOccurrence_")))) {
+    values <- rep(1, num_entries)
+  }
+  
+  # create a tibble
+  df <- tibble(
+    person_id = rep(person_id, num_entries),
+    parameter_concept_id = rep(parameter_concept_id, num_entries),
+    datetime = datetimes,
+    end_datetime = end_datetimes,
+    value = values
+  )
+  
+  return(df)
+}
+
+generate_tibble <- function(person_id, start_date, end_date, criterion_name){
+  
+  # seed the random number generator
+  md5_hash = digest::digest(criterion_name, "md5")
+  set.seed(as.integer(person_id) + strtoi(substr(md5_hash, 1, 5), 16))
+  
+  # initialize the parameter_concept_id to 0
+  parameter_concept_id <- 0
+  
+  # calculate the number of days in the observation period
+  num_days <- as.integer(difftime(end_date, start_date, units = "days"))
+  
+  type_range <- TRUE
+  
+  # determine the type of the criterion and number of entries per day
+  if (any(startsWith(criterion_name, c("Measurement_", "TidalVolumePerIdealBodyWeight_", "ConceptCriterion_")))) {
+    type_range <- FALSE
+    if (grepl("aPTT", criterion_name))  entries_per_day <- sample(4:6, 1) # aPTT: 4-6 times per day
+    else if (grepl("Tidal-volume", criterion_name)) entries_per_day <- sample(24:24*4, 1) # Tidal volume: 1-2 times per day
+    else if (grepl("D-dimer", criterion_name)) entries_per_day <- sample(1:2, 1) # D-dimer: 1-2 times per day
+    else if (grepl("PEEP", criterion_name)) entries_per_day <- sample(24:24*4, 1) # PEEP: 1-4 times per day
+    else if (grepl("Body-weight", criterion_name)) entries_per_day <- 1/num_days # Body weight: once per day
+    else if (grepl("Inhaled-oxygen-concentration", criterion_name)) entries_per_day <- sample(24:24*4, 1) # Inhaled oxygen concentration: 1-2 times per day
+    else if (grepl("Horowitz-index", criterion_name)) entries_per_day <- sample(24:24*4, 1) # Horowitz index: 1-2 times per day
+    else if (grepl("Pressure-max", criterion_name)) entries_per_day <- sample(24:24*4, 1) # Maximal pressure during respiration: 1-4 times per day
+  
+  } else if (startsWith(criterion_name, "DrugExposure_")){
+    entries_per_day <- sample(0:2, 1) # drug exposures: 0 to 2 times per day
+  } else if (any(startsWith(criterion_name, c("ProcedureOccurrence_")))) {
+    entries_per_day <- sample(0:1, 1) # occurrences: 0 to 1 times per day
+  } else if (any(startsWith(criterion_name, c("ConditionOccurrence_", "VisitOccurrence_")))) {
+    entries_per_day <- sample(0:1, 1) / num_days # occurrences: 0 to 1 times per stay
+  } else {
+    stop("No entry found for criterion_name = ", criterion_name)
+  }
+  
+  # calculate the total number of entries
+  num_entries <- num_days * entries_per_day
+  
+  # generate datetime and end_datetime
+  datetimes <- sample(seq(as.POSIXct(start_date), as.POSIXct(end_date), by="min"), num_entries)
+  if(num_entries == 1) {
+    sample_range <- 300:3000
+  } else {
+    sample_range <- 5:720
+  }
+  
+  end_datetimes <- datetimes
+  
+  if (type_range) {
+    end_datetimes <- end_datetimes + as.difftime(sample(sample_range, num_entries, replace = TRUE), units = "mins") # random duration for occurrences
+  }
+
+  # generate values
+  if (any(startsWith(criterion_name, c("Measurement_", "TidalVolumePerIdealBodyWeight_", "ConceptCriterion_")))) {
+    if (grepl("aPTT", criterion_name)) values <- runif(num_entries, 20, 40) # adjust as per clinically plausible values
+    else if (grepl("Tidal-volume", criterion_name)) values <- runif(num_entries, 5, 10)
+    else if (grepl("D-dimer", criterion_name)) values <- runif(num_entries, 0, 0.5)
+    else if (grepl("PEEP", criterion_name)) values <- runif(num_entries, 5, 20)
+    else if (grepl("Body-weight", criterion_name)) values <- runif(num_entries, 50, 100)
+    else if (grepl("Inhaled-oxygen-concentration", criterion_name)) values <- runif(num_entries, 21, 100)
+    else if (grepl("Horowitz-index", criterion_name)) values <- runif(num_entries, 200, 500)
+    else if (grepl("Pressure-max", criterion_name)) values <- runif(num_entries, 10, 30)
+  } else if (startsWith(criterion_name, "DrugExposure_")){
+    values <- runif(num_entries, 0.1, 1.0) # adjust as per clinically plausible values
+  } else if (any(startsWith(criterion_name, c("ConditionOccurrence_", "ProcedureOccurrence_", "VisitOccurrence_")))) {
+    values <- rep(1, num_entries)
+  }
+  
+  # create a tibble
+  df <- tibble(
+    person_id = rep(person_id, num_entries),
+    parameter_concept_id = rep(parameter_concept_id, num_entries),
+    datetime = datetimes,
+    end_datetime = end_datetimes,
+    value = values
+  ) %>% arrange(datetime)
+
+  return(df)
+}
+

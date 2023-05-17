@@ -11,7 +11,6 @@ library(dotenv)
 library(shinycssloaders)
 
 source("load_data.R")
-# source("load_data_devel.R")
 source("ui_utils.R")
 
 addResourcePath(prefix = "img", directoryPath = "images")
@@ -36,6 +35,7 @@ ui <- fluidPage(
       dropdownButton(
         label = "Guideline Recommendation",
         status = "primary",
+        circle=F,
         checkboxGroupInput(
           inputId = "recommendation_url",
           label = "Guideline Recommendation",
@@ -51,7 +51,7 @@ ui <- fluidPage(
       dateRangeInput(
         inputId = "observation_window",
         label = h2("Date range"),
-        start = Sys.Date() - 65,
+        start = Sys.Date() - 10,
         end = Sys.Date(),
         min = "2021-01-01",
         max = Sys.Date(),
