@@ -185,6 +185,7 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
   #' @examples
   #' setPlotUIOutputs(output, person_id = 123, run_id = 456, vars = c("variable1", "variable2"), type = "intervention")
   #'
+
   vars <- vars %>%
     filter(type == !!type) %>%
     # TODO: The next line drops unique criterion_name if there are more than 1
@@ -194,48 +195,68 @@ setPlotUIOutputs <- function(output, person_id, run_id, vars, type, min_dt, max_
 
   for (i in seq_len(nrow(vars))) {
     var <- vars$variable_name[i]
-    criterion_name <- vars$criterion_name[i]
+    concept_id <- vars$concept_id[i]
 
 
     local({
       plotname <- paste("plot", type, var, sep = "_")
       localvar <- var
 
-      data <- load_data(person_id = person_id, run_id = run_id, criterion_name = criterion_name, start_date=min_dt, end_date=max_dt)
+      data <- load_data(person_id = person_id, concept_id = concept_id, start_date = min_dt, end_date = max_dt)
 
       output[[plotname]] <- renderPlotly({
         if (is.null(data) || nrow(data) == 0) {
-          # no data
-          # browser()
+          # No data case: Render an empty plot
           ggp <- ggplot() +
             geom_blank() +
             expand_limits(x = c(min_dt, max_dt), y = c(0, 1))
-        } else if (class(data$value) == "factor") {
-          # categorical variables
-          ggp <- ggplot(data, aes(x = datetime, y = value, group = value)) +
-            geom_step(aes(group = 1)) +
-            geom_point()
-        } else if (any(data$datetime != data$end_datetime)) {
-          # time periods
-          ggp <- ggplot(data, aes(y = value, yend = value, x = datetime, xend = end_datetime)) +
-            geom_segment(linewidth = 1) +
-            geom_point()
-        } else if (class(data$value) == "logical") {
-          # boolean variables
-          ggp <- ggplot(data, aes(x = datetime, ymin = 0, y = value, ymax = value)) +
-            geom_linerange() +
-            geom_point()
+        } else if ("datetime" %in% colnames(data) && "value" %in% colnames(data) && !"end_datetime" %in% colnames(data)) {
+          # Case 1: Dot and line plot (datetime + value)
+          ggp <- ggplot(data, aes(x = datetime, y = value)) +
+            geom_line(color = "blue") + # Connect the dots
+            geom_point(size = 2) # Add dots
+        } else if ("datetime" %in% colnames(data) && "end_datetime" %in% colnames(data) && !"value" %in% colnames(data)) {
+          # Case 2: Horizontal bars for intervals (datetime + end_datetime without value)
+          ggp <- ggplot(data, aes(y = factor(1))) +
+            geom_tile(
+              aes(
+                x = as.POSIXct((as.numeric(datetime) + as.numeric(end_datetime)) / 2, origin = "1970-01-01"),
+                width = as.numeric(difftime(end_datetime, datetime, units = "secs"))
+              ),
+              height = 0.5, fill = "darkred", alpha = 0.8
+            ) +
+            geom_point(aes(x = datetime), size = 3, color = "blue") + # Start point
+            geom_point(aes(x = end_datetime), size = 3, color = "blue") + # End point
+            xlab("Time Interval") +
+            ylab("") +
+            theme(
+              axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              panel.background = element_blank()
+            )
+        } else if ("datetime" %in% colnames(data) && "end_datetime" %in% colnames(data) && "value" %in% colnames(data)) {
+          # Case 3: Horizontal "point and stick" lines (datetime + end_datetime + value)
+          ggp <- ggplot(data, aes(y = value)) +
+            geom_linerange(aes(xmin = datetime, xmax = end_datetime), linewidth = 1.2, color = "darkblue") +
+            geom_point(aes(x = datetime), size = 2, color = "blue") + # Start point
+            geom_point(aes(x = end_datetime), size = 2, color = "blue") + # End point
+            xlab("Time Interval") +
+            ylab("Value") +
+            theme_minimal()
         } else {
-          # continuous data
+          # Default: Handle unexpected cases gracefully with a fallback continuous plot
           ggp <- ggplot(data, aes(datetime, value)) +
             geom_line() +
-            geom_point()
+            geom_point(size = 2, color = "blue")
         }
 
-        ggplotly(ggp +
-          xlab("Date") +
-          ylab(localvar) +
-          coord_cartesian(xlim = c(min_dt, max_dt)))
+        # Add plotly interactivity and axis limits
+        ggplotly(
+          ggp +
+            xlab("Date") +
+            ylab(localvar) +
+            coord_cartesian(xlim = c(min_dt, max_dt))
+        )
       })
     })
   }

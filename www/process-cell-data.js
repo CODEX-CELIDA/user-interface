@@ -39,17 +39,17 @@ function addDataAttributes(api, row, data, dataIndex) {
     let colNames = getColumnNames(api);
 
     $(row).find('td').each(function (colIndex) {
-        
+
         // colIndex is the index of the td, i.e. only of the visible columns
         // need to determine the actual column index in the data
         let colIndexData = findTrueElementIndex(visibleCols, colIndex);
         let colName = colNames[colIndexData];
-        
+
         // only add data-* attributes to columns ending with ".data"
         if (!colName.endsWith('.data')) {
             return;
         }
-        
+
         // cut the ".data"
         let prefix = colName.slice(0, -5);
 
@@ -60,7 +60,13 @@ function addDataAttributes(api, row, data, dataIndex) {
         let dataDays = data[colIndexDays];
         let dataComment = data[colIndexComment];
 
-        $(this).text((parseFloat(dataPercentage)).toFixed(0) + '%');
+        const parsedPercentage = parseFloat(dataPercentage);
+
+        if (!isNaN(parsedPercentage)) {
+            $(this).text(parsedPercentage.toFixed(0) + '%');
+        } else {
+            $(this).text(''); // Display nothing
+        }
         $(this).attr('data-percentage', dataPercentage);
         $(this).attr('data-days', dataDays);
         $(this).attr('data-comment', dataComment);
@@ -127,7 +133,7 @@ function footerSummary(api, row, data, start, end, display) {
         if (firstCell.data("days") === undefined) {
             continue;
         }
-        
+
         // calculate the average of visible rows
         let p = c.data().reduce(function (a, b) { return floatVal(a) + floatVal(b) }, 0);
         p /= c.data().length;

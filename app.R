@@ -35,7 +35,7 @@ ui <- fluidPage(
       dropdownButton(
         label = "Guideline Recommendation",
         status = "primary",
-        circle=F,
+        circle = F,
         checkboxGroupInput(
           inputId = "recommendation_url",
           label = "Guideline Recommendation",
@@ -51,8 +51,8 @@ ui <- fluidPage(
       dateRangeInput(
         inputId = "observation_window",
         label = h2("Date range"),
-        start = Sys.Date() - 10,
-        end = Sys.Date(),
+        start = "2021-01-01",
+        end = "2021-01-10",
         min = "2021-01-01",
         max = Sys.Date(),
         width = "100%",
@@ -256,7 +256,20 @@ server <- function(input, output, session) {
 
   observeEvent(rv$selected_recommendation_url(),
     {
-      rv$recommendation_criteria <- load_recommendation_variables(rv$selected_recommendation_url())
+      run_id <- patient_overview()$run_id %>%
+        filter(url == rv$selected_recommendation_url()) %>%
+        pull(run_id)
+
+      min_dt <- as.POSIXct(format(input$observation_window[1]))
+      max_dt <- as.POSIXct(format(input$observation_window[2]))
+
+      rv$recommendation_criteria <- load_recommendation_variables(
+        run_id = run_id,
+        person_id = rv$selected_person_id(),
+        start_datetime = min_dt,
+        end_datetime = max_dt
+      )
+
       rv$vars_population <- rv$recommendation_criteria %>%
         filter(type == "population") %>%
         pull(variable_name) %>%

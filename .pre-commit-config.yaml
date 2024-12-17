@@ -1,0 +1,20 @@
+repos:
+-   repo: https://github.com/lorenzwalthert/precommit
+    rev: v0.4.3.9003
+    hooks:
+    -   id: style-files
+        args: [--style_pkg=styler, --style_fun=tidyverse_style]
+    -   id: parsable-R
+    -   id: no-browser-statement
+    -   id: no-debug-statement
+      #-   id: lintr
+      #    verbose: true
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: mixed-line-ending
+    -   id: check-json
+    -   id: pretty-format-json
+        args: ['--autofix', '--no-sort-keys']
