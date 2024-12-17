@@ -1,12 +1,12 @@
 function testArrayKeys(arr1, arr2) {
   for (let i = 0; i < arr1.length; i++) {
     let key = arr1[i];
-    
+
     if (!arr2.hasOwnProperty(key)) {
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -15,7 +15,7 @@ function styleBatteryBar(data, colormap) {
     console.warn("An array is required");
     return "";
   }
-  
+
   if(!testArrayKeys(data, colormap)) {
     console.warn("Each value of data must be a key in colormap")
     return "";
@@ -46,11 +46,11 @@ function styleBatteryBar(data, colormap) {
 
 function sampleWithReplacement(arr, n) {
   let result = [];
-  
+
   for (let i = 0; i < n; i++) {
     let randomIndex = Math.floor(Math.random() * arr.length);
     result.push(arr[randomIndex]);
   }
-  
+
   return result;
 }
